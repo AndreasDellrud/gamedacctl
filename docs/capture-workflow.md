@@ -2,10 +2,11 @@
 title: Windows and capture workflow
 type: pattern
 status: current
-updated: 2026-09-04
+updated: 2026-09-05
 sources:
   - docs/raw/capture-effects-20260904-2323.usbmon
   - docs/raw/capture-zones-20260904.usbmon
+  - docs/raw/capture-full-effects-mic-20260905.pcapng
 ---
 
 # Windows and capture workflow
@@ -80,6 +81,24 @@ sudo timeout 600 stdbuf -oL cat /sys/kernel/debug/usb/usbmon/1u \
 Replace both bus and device numbers with current values. Start capture before changing Engine settings, enter hex colors directly, avoid dragging the picker, apply once, and wait at least five seconds between labeled actions.
 
 Text usbmon is sufficient to identify transport and early fields but truncates the displayed data portion of long transfers. Use a binary usbmon/pcap capture for complete animation reports.
+
+## Full binary capture
+
+Install Arch package `wireshark-cli`, then capture the whole USB bus with a full snap length:
+
+```bash
+sudo dumpcap -q -i usbmon1 -s 0 -w /tmp/gamedac-capture.pcapng
+```
+
+Stop with Ctrl-C. Linux's USB capture backend does not accept a device-address capture filter, so the temporary file contains unrelated traffic from that bus. Resolve the current GameDAC address, immediately extract only that device, and discard the temporary whole-bus file:
+
+```bash
+tshark -r /tmp/gamedac-capture.pcapng \
+  -Y 'usb.device_address == 22' \
+  -w docs/raw/capture-filtered-YYYYMMDD.pcapng
+```
+
+Replace device 22 with the current address. Verify the filtered file contains only that address, record its SHA-256, and never commit the temporary whole-bus capture.
 
 ## Safety and cleanup
 

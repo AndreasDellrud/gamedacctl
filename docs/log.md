@@ -2,11 +2,15 @@
 title: Documentation log
 type: journal
 status: current
-updated: 2026-09-04
+updated: 2026-09-05
 sources: []
 ---
 
 # Documentation log
+
+## [2026-09-05] discovery | Capture and verify complete animations
+
+Added full-payload GameDAC-only pcap captures for earcup effects, connected modes, and microphone states. Proved duration encodings, nibble-packed color storage, zone apply masks, and the live/muted microphone mapping. Native replay verified 10-second connected Sweep alternation, matching Synchronized behavior, and 5-second synchronized Breathe. Added guarded exact-pcap replay to the Linux utility; arbitrary animation generation remains intentionally disabled pending header-color resolution.
 
 ## [2026-09-04] ingest | Preserve GameDAC RGB investigation
 

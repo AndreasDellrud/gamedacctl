@@ -2,10 +2,12 @@
 title: Capture experiments
 type: journal
 status: mixed
-updated: 2026-09-04
+updated: 2026-09-05
 sources:
   - docs/raw/capture-effects-20260904-2323.usbmon
   - docs/raw/capture-zones-20260904.usbmon
+  - docs/raw/capture-full-effects-mic-20260905.pcapng
+  - docs/raw/capture-connected-modes-20260905.pcapng
   - scripts/gamedac-rgb
 ---
 
@@ -67,6 +69,26 @@ The user additionally performed three multicolor-breathe tests while changing zo
 - Text-mode usbmon truncates feature data after 32 bytes, so later coefficient records may be missing.
 - Engine encoded requested right `#FF3700` as header `FF3C00`; this needs a small direct-color retest if exact animated colors matter.
 
+## Full-payload and microphone capture
+
+Source: `raw/capture-full-effects-mic-20260905.pcapng`.
+
+Binary `usbmon` capture retained every byte of each 1,024-byte feature report with zero packet loss. The earcup batch covered static markers, Breathe at 5, 15, and 25 seconds, different colors, swapped per-side colors, six connected direction/reverse actions, and disabled illumination. The microphone batch covered two static color reversals, physical mute toggles, ColorShift and Multi Color Breathe at 5, 15, and 25 seconds, reversed ColorShift order, and a static end marker.
+
+Physical checks proved zone 2 is live/unmuted and zone 3 is muted. The duration fields and later color encoding are documented in [the protocol page](protocol.md).
+
+## Controlled connected-mode capture and replay
+
+Source: `raw/capture-connected-modes-20260905.pcapng`.
+
+Color `#2468AC` and duration 10 seconds were held constant while testing Sweep, Synchronized, Reflected, and reverse. Sweep normal and reverse differed only at byte 162. Synchronized differed from Sweep at byte 152. GG emitted no new feature payload for reversed Synchronized, Reflected, or reversed Reflected under these controlled inputs; it emitted only commit reports.
+
+Linux then replayed the exact captured reports:
+
+- Frames 7 and 11: user observed alternation between earcups, verifying connected Sweep.
+- Frames 31 and 33: user observed both earcups breathing together, verifying Synchronized.
+- Frames 175 and 177 from the larger capture: user observed synchronized 5-second Breathe, verifying complete animated replay at a second duration.
+
 ## Next experiment
 
-Capture full 1,024-byte feature data in pcap form. Then replay one isolated breathe preset per speed, first with identical zones and then with left/right colors swapped. Record the physical result after each replay before exposing stable CLI names.
+Before exposing generated animations, resolve the role of header RGB offsets 2–4 by capturing a freshly selected animation after distinct static start colors and observing both endpoint colors. Then generate one packet whose fields reproduce an existing capture exactly, followed by one new color/duration combination with a rollback to static black.

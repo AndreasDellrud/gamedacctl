@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Set static Arctis Pro RGB through the original SteelSeries GameDAC.
+"""Control Arctis Pro RGB through the original SteelSeries GameDAC.
 
-The packets below were captured from SteelSeries GG 118.0.0 while setting
-steady RGB colors. Only the observed color/apply/save reports are replayed.
+Static packets are constructed from verified fields. Experimental animations
+can be replayed byte-for-byte from complete SteelSeries GG captures.
 """
 
 import argparse
 import ctypes
 import re
+import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 VENDOR_ID = 0x1038
@@ -55,6 +57,46 @@ def output_payload(*prefix: int) -> bytes:
     return bytes(prefix) + bytes(64 - len(prefix))
 
 
+def captured_feature_payloads(pcap: Path, frames: list[int]) -> list[bytes]:
+    if not pcap.is_file():
+        raise RuntimeError(f"capture does not exist: {pcap}")
+
+    packets = []
+    for frame in frames:
+        try:
+            result = subprocess.run(
+                [
+                    "/usr/bin/tshark",
+                    "-r",
+                    str(pcap),
+                    "-Y",
+                    f"frame.number == {frame} && usb.data_len == 1024",
+                    "-T",
+                    "fields",
+                    "-e",
+                    "usb.data_fragment",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise RuntimeError(f"could not extract frame {frame} with tshark") from error
+        values = [value for value in result.stdout.splitlines() if value]
+        if len(values) != 1:
+            raise RuntimeError(f"frame {frame} is not one complete feature report")
+        try:
+            packet = bytes.fromhex(values[0])
+        except ValueError as error:
+            raise RuntimeError(f"frame {frame} has invalid feature data") from error
+        if len(packet) != 1024 or packet[0] != 0xAA or packet[1] != packet[10]:
+            raise RuntimeError(f"frame {frame} is not a recognized GameDAC lighting report")
+        if packet[1] not in range(4) or packet[11] not in (0, 1):
+            raise RuntimeError(f"frame {frame} contains an unsupported lighting report")
+        packets.append(packet)
+    return packets
+
+
 def open_control_interface(lib: ctypes.CDLL):
     devices = lib.hid_enumerate(VENDOR_ID, PRODUCT_ID)
     current = devices
@@ -90,16 +132,27 @@ def send_output(lib: ctypes.CDLL, device, payload: bytes) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Set static Arctis Pro RGB via GameDAC")
-    parser.add_argument("color", type=parse_color, help="six-digit RGB color, e.g. FF00FF")
+    parser = argparse.ArgumentParser(description="Control Arctis Pro RGB via GameDAC")
+    parser.add_argument("color", nargs="?", type=parse_color, help="six-digit RGB color, e.g. FF00FF")
     parser.add_argument("--dry-run", action="store_true", help="show packets without opening the device")
+    parser.add_argument("--replay-pcap", type=Path, help="replay complete observed feature reports from a pcap")
+    parser.add_argument("--frames", nargs="+", type=int, help="pcap frame numbers to replay in order")
     args = parser.parse_args()
 
-    packets = [feature_payload(zone, args.color) for zone in (1, 0)]
+    replay = args.replay_pcap is not None or args.frames is not None
+    if replay:
+        if args.color is not None or args.replay_pcap is None or not args.frames:
+            parser.error("--replay-pcap and --frames must be used together without COLOR")
+        packets = captured_feature_payloads(args.replay_pcap, args.frames)
+    else:
+        if args.color is None:
+            parser.error("COLOR is required unless --replay-pcap is used")
+        packets = [feature_payload(zone, args.color) for zone in (1, 0)]
+
     if args.dry_run:
-        for zone, packet in zip((1, 0), packets):
-            print(f"zone {zone}: {packet[:12].hex(' ')} ... ({len(packet)} bytes)")
-        print("apply: a5 03 0a; a3; save: ac; 09")
+        for packet in packets:
+            print(f"zone {packet[1]}: {packet[:28].hex(' ')} ... ({len(packet)} bytes)")
+        print("apply: a5 03 0a; save: ac; 09" if replay else "apply: a5 03 0a; a3; save: ac; 09")
         return 0
 
     lib = ctypes.CDLL("libhidapi-hidraw.so.0")
@@ -116,20 +169,34 @@ def main() -> int:
 
     device = open_control_interface(lib)
     try:
-        for packet in packets:
-            send_feature(lib, device, packet)
+        if replay:
+            for packet in packets:
+                send_feature(lib, device, packet)
+                time.sleep(0.06)
+            zone_mask = 0
+            for packet in packets:
+                zone_mask |= 1 << packet[1]
+            send_output(lib, device, output_payload(0xA5, zone_mask, 0x0A))
             time.sleep(0.06)
-            send_output(lib, device, output_payload(0xA5, 0x03, 0x0A))
-            time.sleep(0.06)
-            send_output(lib, device, output_payload(0xA3))
-            time.sleep(0.06)
+        else:
+            for packet in packets:
+                send_feature(lib, device, packet)
+                time.sleep(0.06)
+                send_output(lib, device, output_payload(0xA5, 0x03, 0x0A))
+                time.sleep(0.06)
+                send_output(lib, device, output_payload(0xA3))
+                time.sleep(0.06)
         send_output(lib, device, output_payload(0xAC))
         time.sleep(0.06)
         send_output(lib, device, output_payload(0x09))
     finally:
         lib.hid_close(device)
 
-    print(f"GameDAC RGB set to #{bytes(args.color).hex().upper()}")
+    if replay:
+        zones = ", ".join(str(packet[1]) for packet in packets)
+        print(f"Replayed {len(packets)} captured GameDAC report(s) for zone(s) {zones}")
+    else:
+        print(f"GameDAC RGB set to #{bytes(args.color).hex().upper()}")
     return 0
 
 
