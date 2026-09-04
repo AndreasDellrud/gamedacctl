@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "steelseries_gamedac_linux",
+  "project_id": "dd8c8452-f0de-4a75-bf8b-b5caa6894b0d"
+}
