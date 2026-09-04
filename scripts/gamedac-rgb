@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Set static Arctis Pro RGB through the original SteelSeries GameDAC.
+
+The packets below were captured from SteelSeries GG 118.0.0 while setting
+steady RGB colors. Only the observed color/apply/save reports are replayed.
+"""
+
+import argparse
+import ctypes
+import re
+import sys
+import time
+
+
+VENDOR_ID = 0x1038
+PRODUCT_ID = 0x1280
+INTERFACE = 0
+
+
+class HidDeviceInfo(ctypes.Structure):
+    pass
+
+
+HidDeviceInfoPtr = ctypes.POINTER(HidDeviceInfo)
+HidDeviceInfo._fields_ = [
+    ("path", ctypes.c_char_p),
+    ("vendor_id", ctypes.c_ushort),
+    ("product_id", ctypes.c_ushort),
+    ("serial_number", ctypes.c_wchar_p),
+    ("release_number", ctypes.c_ushort),
+    ("manufacturer_string", ctypes.c_wchar_p),
+    ("product_string", ctypes.c_wchar_p),
+    ("usage_page", ctypes.c_ushort),
+    ("usage", ctypes.c_ushort),
+    ("interface_number", ctypes.c_int),
+    ("next", HidDeviceInfoPtr),
+    ("bus_type", ctypes.c_int),
+]
+
+
+def parse_color(value: str) -> tuple[int, int, int]:
+    value = value.removeprefix("#")
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", value):
+        raise argparse.ArgumentTypeError("color must be RRGGBB or #RRGGBB")
+    return tuple(bytes.fromhex(value))
+
+
+def feature_payload(zone: int, rgb: tuple[int, int, int]) -> bytes:
+    payload = bytearray(1024)
+    payload[:12] = bytes([0xAA, zone, *rgb, 0xFF, 0x32, 0xC8, 0xC8, 0x00, zone, 0x01])
+    return bytes(payload)
+
+
+def output_payload(*prefix: int) -> bytes:
+    return bytes(prefix) + bytes(64 - len(prefix))
+
+
+def open_control_interface(lib: ctypes.CDLL):
+    devices = lib.hid_enumerate(VENDOR_ID, PRODUCT_ID)
+    current = devices
+    path = None
+    while current:
+        info = current.contents
+        if info.interface_number == INTERFACE:
+            path = info.path
+            break
+        current = info.next
+    lib.hid_free_enumeration(devices)
+    if not path:
+        raise RuntimeError("GameDAC control interface 1038:1280 interface 0 was not found")
+    device = lib.hid_open_path(path)
+    if not device:
+        raise PermissionError("could not open the GameDAC control interface; check hidraw permissions")
+    return device
+
+
+def send_feature(lib: ctypes.CDLL, device, payload: bytes) -> None:
+    # HIDAPI requires a leading zero report ID for an unnumbered report.
+    report = (ctypes.c_ubyte * 1025)(0, *payload)
+    result = lib.hid_send_feature_report(device, report, len(report))
+    if result < 0:
+        raise OSError("GameDAC feature report failed")
+
+
+def send_output(lib: ctypes.CDLL, device, payload: bytes) -> None:
+    report = (ctypes.c_ubyte * 65)(0, *payload)
+    result = lib.hid_write(device, report, len(report))
+    if result < 0:
+        raise OSError("GameDAC output report failed")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Set static Arctis Pro RGB via GameDAC")
+    parser.add_argument("color", type=parse_color, help="six-digit RGB color, e.g. FF00FF")
+    parser.add_argument("--dry-run", action="store_true", help="show packets without opening the device")
+    args = parser.parse_args()
+
+    packets = [feature_payload(zone, args.color) for zone in (1, 0)]
+    if args.dry_run:
+        for zone, packet in zip((1, 0), packets):
+            print(f"zone {zone}: {packet[:12].hex(' ')} ... ({len(packet)} bytes)")
+        print("apply: a5 03 0a; a3; save: ac; 09")
+        return 0
+
+    lib = ctypes.CDLL("libhidapi-hidraw.so.0")
+    lib.hid_enumerate.argtypes = [ctypes.c_ushort, ctypes.c_ushort]
+    lib.hid_enumerate.restype = HidDeviceInfoPtr
+    lib.hid_free_enumeration.argtypes = [HidDeviceInfoPtr]
+    lib.hid_open_path.argtypes = [ctypes.c_char_p]
+    lib.hid_open_path.restype = ctypes.c_void_p
+    lib.hid_send_feature_report.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
+    lib.hid_send_feature_report.restype = ctypes.c_int
+    lib.hid_write.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
+    lib.hid_write.restype = ctypes.c_int
+    lib.hid_close.argtypes = [ctypes.c_void_p]
+
+    device = open_control_interface(lib)
+    try:
+        for packet in packets:
+            send_feature(lib, device, packet)
+            time.sleep(0.06)
+            send_output(lib, device, output_payload(0xA5, 0x03, 0x0A))
+            time.sleep(0.06)
+            send_output(lib, device, output_payload(0xA3))
+            time.sleep(0.06)
+        send_output(lib, device, output_payload(0xAC))
+        time.sleep(0.06)
+        send_output(lib, device, output_payload(0x09))
+    finally:
+        lib.hid_close(device)
+
+    print(f"GameDAC RGB set to #{bytes(args.color).hex().upper()}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError) as error:
+        print(f"gamedac-rgb: {error}", file=sys.stderr)
+        raise SystemExit(1)

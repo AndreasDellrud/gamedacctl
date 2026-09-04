@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Validate the small documentation contract without third-party packages."""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+DOCS = ROOT / "docs"
+ERRORS: list[str] = []
+REQUIRED = {"title", "type", "status", "updated", "sources"}
+STATUSES = {"current", "target", "mixed", "superseded"}
+
+
+def frontmatter(path: Path, text: str) -> dict[str, object]:
+    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+        ERRORS.append(f"{path.relative_to(ROOT)}: missing YAML frontmatter")
+        return {}
+    block = text.split("\n---\n", 1)[0].splitlines()[1:]
+    data: dict[str, object] = {}
+    current_list: str | None = None
+    for line in block:
+        if line.startswith("  - ") and current_list:
+            assert isinstance(data[current_list], list)
+            data[current_list].append(line[4:])
+        elif ":" in line:
+            key, value = line.split(":", 1)
+            value = value.strip()
+            if value == "[]":
+                data[key] = []
+            elif value:
+                data[key] = value
+            else:
+                data[key] = []
+            current_list = key
+    missing = REQUIRED - data.keys()
+    if missing:
+        ERRORS.append(f"{path.relative_to(ROOT)}: missing fields {sorted(missing)}")
+    if data.get("status") not in STATUSES:
+        ERRORS.append(f"{path.relative_to(ROOT)}: invalid status {data.get('status')!r}")
+    for source in data.get("sources", []):
+        if not (ROOT / str(source)).exists():
+            ERRORS.append(f"{path.relative_to(ROOT)}: missing source {source}")
+    return data
+
+
+def check_links(path: Path, text: str) -> None:
+    for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", text):
+        if target.startswith(("http://", "https://", "#")):
+            continue
+        target_path = target.split("#", 1)[0]
+        if target_path and not (path.parent / target_path).resolve().exists():
+            ERRORS.append(f"{path.relative_to(ROOT)}: broken link {target}")
+
+
+for page in sorted(DOCS.rglob("*.md")):
+    text = page.read_text(encoding="utf-8")
+    if page.name != "AGENTS.md" and page.parent != DOCS / "raw":
+        frontmatter(page, text)
+    check_links(page, text)
+
+index = (DOCS / "index.md").read_text(encoding="utf-8")
+for expected in ("overview.md", "protocol.md", "experiments.md", "capture-workflow.md"):
+    count = index.count(f"]({expected})")
+    if count != 1:
+        ERRORS.append(f"docs/index.md: expected one catalog entry for {expected}, found {count}")
+
+log_dates = re.findall(r"^## \[(\d{4}-\d{2}-\d{2})\]", (DOCS / "log.md").read_text(), re.MULTILINE)
+if log_dates != sorted(log_dates, reverse=True):
+    ERRORS.append("docs/log.md: entries are not newest first")
+
+if ERRORS:
+    print("Validation failed:", file=sys.stderr)
+    for error in ERRORS:
+        print(f"- {error}", file=sys.stderr)
+    raise SystemExit(1)
+
+print("Documentation and local links validate.")
