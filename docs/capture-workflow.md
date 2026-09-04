@@ -11,6 +11,8 @@ sources:
 
 # Windows and capture workflow
 
+This page contains operational commands. Follow the evidence classification, experiment design, replay gates, privacy handling, and documentation loop in [Reverse-engineering and verification process](research-process.md).
+
 ## Windows VM
 
 Omarchy 4.0.1 uses the `dockurr/windows` container, QEMU/KVM, a local noVNC console on port 8006, and RDP on localhost port 3389. Windows 11 and SteelSeries GG 118.0.0 were installed successfully.

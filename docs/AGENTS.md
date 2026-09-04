@@ -17,6 +17,8 @@ Maintained pages use YAML frontmatter with `title`, `type`, `status`, `updated`,
 - Mark packet semantics as observed, inferred, or unknown.
 - Never silently relabel an old capture after new evidence; add a correction to `log.md`.
 - Keep raw traces immutable and add a new dated capture for each experiment.
+- Follow `research-process.md` for experiment design, whole-bus capture privacy, evidence labels, replay gates, and physical verification.
+- Review `legal.md` before publishing captures, branding an application, adding proprietary dependencies, or expanding beyond device interoperability.
 - Do not publish credentials, serial numbers, installers, or other access-enabling material.
 - Keep unfinished implementation work out of Markdown task lists. Use the repository task tracker if one is introduced.
 - Validate with `scripts/validate` and `git diff --check`.

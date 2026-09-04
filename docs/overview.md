@@ -17,6 +17,8 @@ sources:
 
 Control the wired Arctis Pro headset lighting natively on Arch/Omarchy without keeping SteelSeries GG or a Windows VM running. Preserve normal Linux audio through the GameDAC.
 
+The intended product architecture and delivery gates are maintained in [Native application plan](app-plan.md). All new protocol work follows [Reverse-engineering and verification process](research-process.md), and public distribution is bounded by [Legal and publication considerations](legal.md).
+
 ## Hardware boundaries
 
 | Function | USB identity | Linux role |
