@@ -2,7 +2,7 @@
 title: Native application plan
 type: plan
 status: mixed
-updated: 2026-09-05
+updated: 2026-09-06
 sources:
   - docs/protocol.md
   - docs/experiments.md
@@ -10,6 +10,7 @@ sources:
   - src/main.rs
   - src/bin/gamedacctl-gui.rs
   - packaging/icons/io.github.andreasdellrud.gamedacctl.svg
+  - docs/omarchy-marketplace-validation-20260905.md
 ---
 
 # Native application plan
