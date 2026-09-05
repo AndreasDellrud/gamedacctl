@@ -8,6 +8,18 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] refinement | Reduce UI copy and normalize switch sizing
+
+Removed repeated group descriptions from the GTK window and retained only short, control-specific constraints. Consolidated the workflow, effect meanings, earcup timing, and master-lighting behavior into a header-level How to use dialog available by click, tooltip, keyboard focus, and F1. Renamed the window to GameDAC Lighting while retaining the original-hardware subtitle. Visual inspection found that the Omarchy GTK theme stretched suffix switches to the full preference-row height; centering the master-lighting, reverse, and reconnect switches at their natural height restored normal horizontal-pill proportions. The user accepted both the quieter text hierarchy and corrected switches.
+
+## [2026-09-05] implementation | Add profile-preserving master lighting state
+
+Added a backward-compatible store-level lighting flag that remains independent from the selected profile. Turning lighting off applies the already verified four-zone steady-black plan; turning it on restores the selected saved profile, and explicitly applying a profile enables lighting. Exposed the state through the stable status response and a narrow profile-lighting CLI command so both the GTK controller and thin Omarchy panel use the same locked persistence and HID boundary. The desktop effect labels now describe behavior—Solid, Color Flow, Color Pulse, Together, and Across earcups—while stored values, protocol documentation, and diagnostics retain the observed protocol terminology. Automated compatibility and dry-run coverage passed. After replacing a zero-sized generic Qt control with an ordinary-QML toggle and using Omarchy's supported shell restart, the user physically accepted the panel's off/restore round trip; status confirmed lighting enabled again with `Everyday` still selected.
+
+## [2026-09-05] implementation | Apply the GNOME HIG desktop UX pass
+
+Reworked the functional GTK/libadwaita prototype around GNOME HIG conventions. Added synchronized native color dialogs and exact accessible hex entry, ordered one-to-four-color palette controls, a fixed independent microphone section that persists with animated earcup effects, explicit new and confirmed-delete profile flows, a built-in symbol picker, narrow-layout breakpoints, standard keyboard shortcuts, transient toasts, and a persistent profile-corruption banner while reserving the device row for connection state. Apply is now the only emphasized view action. Added independently drawn full-color and symbolic dial-and-RGB-arc icons and required them in the Arch package. Human checks accepted both emoji input routes, profile management, section ordering, three- and four-color Breathe application, and the combined animated-earcup plus live/muted microphone behavior. Normal and 439-pixel narrow layouts were visually reviewed, keyboard focus reached and revealed palette controls, Ctrl+N reset and focused the profile name, Ctrl+W closed the application, and Ctrl+Enter applied the physically accepted combined profile.
+
 ## [2026-09-05] release | Prepare corrective v0.1.2
 
 Independent verification of the published `v0.1.1` download found that the filtered Cargo archive still contained the nested `docs/AGENTS.md` instruction file. The release remained checksum-valid and the binary package contained only its intended runtime files, but this violated the documented source-exclusion boundary. Excluded the nested file, generalized the release builder to reject `AGENTS.md` or `CLAUDE.md` at any archive depth, and raised the successor version to `0.1.2` without moving or replacing the immutable `v0.1.1` tag.

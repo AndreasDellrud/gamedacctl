@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -127,6 +128,28 @@ except FileNotFoundError:
 except subprocess.CalledProcessError as error:
     raise SystemExit(error.returncode)
 print("Desktop launcher validates.")
+
+desktop_entry = (ROOT / "packaging/io.github.andreasdellrud.gamedacctl.desktop").read_text()
+if "Icon=io.github.andreasdellrud.gamedacctl\n" not in desktop_entry:
+    ERRORS.append("desktop launcher does not reference the packaged application icon")
+for icon in (
+    ROOT / "packaging/icons/io.github.andreasdellrud.gamedacctl.svg",
+    ROOT / "packaging/icons/io.github.andreasdellrud.gamedacctl-symbolic.svg",
+):
+    try:
+        root = ET.parse(icon).getroot()
+    except (OSError, ET.ParseError) as error:
+        ERRORS.append(f"{icon.relative_to(ROOT)}: invalid SVG: {error}")
+        continue
+    if root.attrib.get("viewBox") is None:
+        ERRORS.append(f"{icon.relative_to(ROOT)}: SVG is missing a viewBox")
+
+if ERRORS:
+    print("Validation failed:", file=sys.stderr)
+    for error in ERRORS:
+        print(f"- {error}", file=sys.stderr)
+    raise SystemExit(1)
+print("Application icons validate.")
 
 checks = [
     ["cargo", "fmt", "--check"],

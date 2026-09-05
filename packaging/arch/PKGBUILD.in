@@ -43,6 +43,10 @@ package() {
   install -Dm755 target/release/gamedacctl-gui "$pkgdir/usr/bin/gamedacctl-gui"
   install -Dm644 packaging/io.github.andreasdellrud.gamedacctl.desktop \
     "$pkgdir/usr/share/applications/io.github.andreasdellrud.gamedacctl.desktop"
+  install -Dm644 packaging/icons/io.github.andreasdellrud.gamedacctl.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.andreasdellrud.gamedacctl.svg"
+  install -Dm644 packaging/icons/io.github.andreasdellrud.gamedacctl-symbolic.svg \
+    "$pkgdir/usr/share/icons/hicolor/symbolic/apps/io.github.andreasdellrud.gamedacctl-symbolic.svg"
   install -Dm644 packaging/udev/70-gamedacctl.rules \
     "$pkgdir/usr/lib/udev/rules.d/70-gamedacctl.rules"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

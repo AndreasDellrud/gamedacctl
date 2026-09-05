@@ -125,6 +125,8 @@ for required in \
   'gamedacctl /usr/bin/gamedacctl-gui' \
   'gamedacctl /usr/lib/udev/rules.d/70-gamedacctl.rules' \
   'gamedacctl /usr/share/applications/io.github.andreasdellrud.gamedacctl.desktop' \
+  'gamedacctl /usr/share/icons/hicolor/scalable/apps/io.github.andreasdellrud.gamedacctl.svg' \
+  'gamedacctl /usr/share/icons/hicolor/symbolic/apps/io.github.andreasdellrud.gamedacctl-symbolic.svg' \
   'gamedacctl /usr/share/licenses/gamedacctl/LICENSE-APACHE' \
   'gamedacctl /usr/share/licenses/gamedacctl/LICENSE-MIT'; do
   if ! grep -Fxq "$required" <<<"$package_listing"; then

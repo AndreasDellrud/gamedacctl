@@ -63,6 +63,7 @@ fn status_json_reports_profiles_and_a_machine_readable_device_state() {
     assert_eq!(response["schema_version"], 1);
     assert!(response["device"]["state"].is_string());
     assert_eq!(response["apply_on_reconnect"], true);
+    assert_eq!(response["lighting_enabled"], true);
     assert_eq!(response["profiles"][0]["name"], "Everyday");
     assert_eq!(response["profiles"][0]["icon"], "💜");
     assert_eq!(response["profiles"][0]["selected"], true);
@@ -107,6 +108,46 @@ fn missing_saved_profile_fails_without_opening_hid() {
         String::from_utf8(output.stderr)
             .unwrap()
             .contains("was not found")
+    );
+}
+
+#[test]
+fn master_lighting_off_dry_run_covers_every_zone_without_rewriting_store() {
+    let config_home = tempdir().unwrap();
+    profile_store(config_home.path());
+    let path = config_home.path().join("gamedacctl/profiles.json");
+    let before = fs::read(&path).unwrap();
+    let output = gamedacctl()
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .args(["--dry-run", "profile", "lighting", "off", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("feature zone=left length=1024 bytes=AA 00 00 00 00"));
+    assert!(stdout.contains("feature zone=right length=1024 bytes=AA 01 00 00 00"));
+    assert!(stdout.contains("feature zone=microphone-live"));
+    assert!(stdout.contains("feature zone=microphone-muted"));
+    assert!(stdout.contains("zone-mask=0x0F"));
+    assert_eq!(fs::read(path).unwrap(), before);
+}
+
+#[test]
+fn master_lighting_on_dry_run_restores_the_selected_profile() {
+    let config_home = tempdir().unwrap();
+    profile_store(config_home.path());
+    let output = gamedacctl()
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .args(["--dry-run", "profile", "lighting", "on", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("feature zone=right")
     );
 }
 

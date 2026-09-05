@@ -20,7 +20,13 @@ pub struct ProfileStore {
     pub schema_version: u32,
     pub last_selected: Option<String>,
     pub apply_on_reconnect: bool,
+    #[serde(default = "enabled_by_default")]
+    pub lighting_enabled: bool,
     pub profiles: Vec<Profile>,
+}
+
+const fn enabled_by_default() -> bool {
+    true
 }
 
 impl Default for ProfileStore {
@@ -29,6 +35,7 @@ impl Default for ProfileStore {
             schema_version: PROFILE_SCHEMA_VERSION,
             last_selected: None,
             apply_on_reconnect: false,
+            lighting_enabled: true,
             profiles: Vec::new(),
         }
     }
@@ -133,6 +140,10 @@ impl ProfileStore {
         }
     }
 
+    pub fn set_lighting_enabled(&mut self, enabled: bool) {
+        self.lighting_enabled = enabled;
+    }
+
     pub fn upsert(&mut self, profile: Profile) -> Result<(), ProfileError> {
         profile.validate()?;
         if let Some(existing) = self
@@ -145,6 +156,19 @@ impl ProfileStore {
             self.profiles.push(profile);
             self.profiles
                 .sort_by_key(|profile| profile.name.to_lowercase());
+        }
+        Ok(())
+    }
+
+    pub fn remove(&mut self, name: &str) -> Result<(), ProfileError> {
+        let index = self
+            .profiles
+            .iter()
+            .position(|profile| profile.name == name)
+            .ok_or_else(|| ProfileError::ProfileNotFound(name.to_owned()))?;
+        self.profiles.remove(index);
+        if self.last_selected.as_deref() == Some(name) {
+            self.last_selected = None;
         }
         Ok(())
     }
@@ -176,39 +200,46 @@ pub struct Profile {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub microphone: Option<MicrophoneLighting>,
     pub lighting: ProfileLighting,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MicrophoneLighting {
+    pub live: Color,
+    pub muted: Color,
 }
 
 impl Profile {
     pub fn plan(&self) -> Result<LightingPlan, ProfileError> {
         self.validate()?;
-        match &self.lighting {
+        let plan = match &self.lighting {
             ProfileLighting::Static {
                 left,
                 right,
                 microphone_live,
                 microphone_muted,
-            } => Ok(LightingPlan::steady([
+            } => LightingPlan::steady([
                 (Zone::Left, *left),
                 (Zone::Right, *right),
                 (Zone::MicrophoneLive, *microphone_live),
                 (Zone::MicrophoneMuted, *microphone_muted),
-            ])?),
+            ])?,
             ProfileLighting::Breathe {
                 color,
                 seconds,
                 mode,
                 reverse,
-            } => Ok(LightingPlan::breathe(
+            } => LightingPlan::breathe(
                 *color,
                 BreatheDuration::from_seconds(*seconds)?,
                 (*mode).into(),
                 *reverse,
-            )?),
-            ProfileLighting::ColorShift { colors, seconds } => Ok(LightingPlan::color_shift(
-                colors,
-                BreatheDuration::from_seconds(*seconds)?,
-            )?),
+            )?,
+            ProfileLighting::ColorShift { colors, seconds } => {
+                LightingPlan::color_shift(colors, BreatheDuration::from_seconds(*seconds)?)?
+            }
             ProfileLighting::MultiColorBreathe {
                 colors,
                 seconds,
@@ -216,10 +247,10 @@ impl Profile {
                 reverse,
             } => {
                 if *mode == ProfileBreatheMode::Synchronized && !reverse {
-                    Ok(LightingPlan::multi_color_breathe(
+                    LightingPlan::multi_color_breathe(
                         colors,
                         BreatheDuration::from_seconds(*seconds)?,
-                    )?)
+                    )?
                 } else {
                     let duration = BreatheDuration::from_seconds(*seconds)?;
                     let header = colors.first().copied().unwrap_or(Color::BLACK);
@@ -236,9 +267,19 @@ impl Profile {
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    Ok(LightingPlan::captured(features)?)
+                    LightingPlan::captured(features)?
                 }
             }
+        };
+        if !matches!(self.lighting, ProfileLighting::Static { .. })
+            && let Some(microphone) = self.microphone
+        {
+            Ok(plan.with_steady([
+                (Zone::MicrophoneLive, microphone.live),
+                (Zone::MicrophoneMuted, microphone.muted),
+            ])?)
+        } else {
+            Ok(plan)
         }
     }
 
@@ -387,6 +428,7 @@ mod tests {
         Profile {
             name: name.to_owned(),
             icon: None,
+            microphone: None,
             lighting: ProfileLighting::Static {
                 left: Color::new(0xFF, 0x37, 0x00),
                 right: Color::new(0x00, 0x84, 0xFF),
@@ -402,6 +444,7 @@ mod tests {
         let store = ProfileStore::load_from(&directory.path().join("profiles.json")).unwrap();
         assert_eq!(store, ProfileStore::default());
         assert!(!store.apply_on_reconnect);
+        assert!(store.lighting_enabled);
     }
 
     #[test]
@@ -412,11 +455,13 @@ mod tests {
             store.upsert(static_profile("Everyday"))?;
             store.select("Everyday")?;
             store.apply_on_reconnect = true;
+            store.set_lighting_enabled(false);
             Ok(())
         })
         .unwrap();
 
         assert_eq!(ProfileStore::load_from(&path).unwrap(), store);
+        assert!(!store.lighting_enabled);
         assert_eq!(
             fs::metadata(path.parent().unwrap())
                 .unwrap()
@@ -437,6 +482,24 @@ mod tests {
                 & 0o777,
             0o600
         );
+    }
+
+    #[test]
+    fn removing_a_profile_clears_its_selection() {
+        let mut store = ProfileStore::default();
+        store.upsert(static_profile("Everyday")).unwrap();
+        store.upsert(static_profile("Night")).unwrap();
+        store.select("Everyday").unwrap();
+
+        store.remove("Everyday").unwrap();
+
+        assert_eq!(store.last_selected, None);
+        assert_eq!(store.profiles.len(), 1);
+        assert_eq!(store.profiles[0].name, "Night");
+        assert!(matches!(
+            store.remove("Missing"),
+            Err(ProfileError::ProfileNotFound(name)) if name == "Missing"
+        ));
     }
 
     #[test]
@@ -558,6 +621,7 @@ mod tests {
             store.upsert(Profile {
                 name: "Invalid".to_owned(),
                 icon: None,
+                microphone: None,
                 lighting: ProfileLighting::Breathe {
                     color: Color::new(1, 2, 3),
                     seconds: 10,
@@ -577,6 +641,7 @@ mod tests {
         let breathe_plan = Profile {
             name: "Pulse".to_owned(),
             icon: Some("💜".to_owned()),
+            microphone: None,
             lighting: ProfileLighting::Breathe {
                 color: Color::new(0x7A, 0x21, 0xE6),
                 seconds: 10,
@@ -587,6 +652,24 @@ mod tests {
         .plan()
         .unwrap();
         assert_eq!(breathe_plan.zone_mask(), 0x03);
+
+        let breathe_with_microphone = Profile {
+            name: "Pulse and microphone".to_owned(),
+            icon: None,
+            microphone: Some(MicrophoneLighting {
+                live: Color::new(0xFF, 0, 0),
+                muted: Color::new(0, 0xFF, 0),
+            }),
+            lighting: ProfileLighting::Breathe {
+                color: Color::new(0x7A, 0x21, 0xE6),
+                seconds: 10,
+                mode: ProfileBreatheMode::Synchronized,
+                reverse: false,
+            },
+        }
+        .plan()
+        .unwrap();
+        assert_eq!(breathe_with_microphone.zone_mask(), 0x0F);
 
         for lighting in [
             ProfileLighting::ColorShift {
@@ -603,6 +686,7 @@ mod tests {
             let plan = Profile {
                 name: "Palette".to_owned(),
                 icon: None,
+                microphone: None,
                 lighting,
             }
             .plan()
@@ -628,6 +712,21 @@ mod tests {
         .unwrap();
         assert!(matches!(profile.lighting, ProfileLighting::Breathe { .. }));
         assert_eq!(profile.plan().unwrap().zone_mask(), 0x03);
+    }
+
+    #[test]
+    fn legacy_store_defaults_master_lighting_to_enabled() {
+        let store: ProfileStore = serde_json::from_str(
+            r#"{
+                "schema_version": 1,
+                "last_selected": null,
+                "apply_on_reconnect": false,
+                "profiles": []
+            }"#,
+        )
+        .unwrap();
+
+        assert!(store.lighting_enabled);
     }
 
     #[test]

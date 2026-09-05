@@ -13,7 +13,7 @@ sources:
 
 ## Location and ownership
 
-`gamedacctl` stores named lighting profiles, the last selected profile, and the opt-in reconnect policy in:
+`gamedacctl` stores named lighting profiles, the last selected profile, the master lighting state, and the opt-in reconnect policy in:
 
 ```text
 $XDG_CONFIG_HOME/gamedacctl/profiles.json
@@ -21,7 +21,7 @@ $XDG_CONFIG_HOME/gamedacctl/profiles.json
 
 When `XDG_CONFIG_HOME` is unset or not an absolute path, the Linux default is `~/.config/gamedacctl/profiles.json`. Profiles are application configuration, not cache: they survive logout, reboot, application upgrades, and package removal. The package manager never creates, edits, or removes this user-owned file.
 
-The current schema remains version 1. Existing profile values require no migration. A successful write makes the application directory user-only (`0700`) and creates the profile and lock files user-readable and user-writable only (`0600`). An existing broader mode is tightened on the next successful application write; read-only commands do not silently mutate permissions.
+The current schema remains version 1. The additive `lighting_enabled` store field defaults to `true` when absent, so existing files require no migration. It is independent of the selected profile: turning lighting off sends verified steady black to all four zones while retaining the profile that will be restored when lighting is enabled again. Explicitly applying a profile enables lighting. A successful write makes the application directory user-only (`0700`) and creates the profile and lock files user-readable and user-writable only (`0600`). An existing broader mode is tightened on the next successful application write; read-only commands do not silently mutate permissions.
 
 ## Consistency and durability
 
@@ -39,7 +39,7 @@ There is no automatic repair because guessing could discard the only copy of a u
 
 ## Backup and restore
 
-Close the GUI before a planned backup or restore. The Omarchy panel only reads the store except when it invokes the controller to select a profile.
+Close the GUI before a planned backup or restore. The Omarchy panel only reads the store except when it invokes the controller to select a profile or change the master lighting state.
 
 Back up the file while preserving its mode:
 

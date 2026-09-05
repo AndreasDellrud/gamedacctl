@@ -97,6 +97,14 @@ enum ProfileCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Turn all lighting off or restore the selected profile.
+    Lighting {
+        #[arg(value_enum)]
+        state: LightingState,
+        /// Emit the stable machine-readable response.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -104,6 +112,7 @@ struct StatusResponse {
     schema_version: u32,
     device: DeviceStatus,
     apply_on_reconnect: bool,
+    lighting_enabled: bool,
     profiles: Vec<ProfileSummary>,
 }
 
@@ -126,6 +135,15 @@ struct ApplyResponse {
     schema_version: u32,
     applied: bool,
     profile: String,
+    lighting_enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct LightingResponse {
+    schema_version: u32,
+    applied: bool,
+    lighting_enabled: bool,
+    profile: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -145,6 +163,12 @@ enum OffTarget {
     Earcups,
     Microphone,
     All,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum LightingState {
+    On,
+    Off,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -183,6 +207,10 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Profile(ProfileCommand::Apply { name, json }) => {
             apply_saved_profile(&name, json, cli.dry_run)?;
+            return Ok(());
+        }
+        Command::Profile(ProfileCommand::Lighting { state, json }) => {
+            set_master_lighting(matches!(state, LightingState::On), json, cli.dry_run)?;
             return Ok(());
         }
         Command::Static(args) => LightingPlan::steady(
@@ -275,6 +303,7 @@ fn print_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
         schema_version: 1,
         device,
         apply_on_reconnect: store.apply_on_reconnect,
+        lighting_enabled: store.lighting_enabled,
         profiles: store
             .profiles
             .iter()
@@ -324,7 +353,11 @@ fn apply_saved_profile(
     }
 
     HidTransport::open()?.execute(&plan)?;
-    ProfileStore::update(|latest| latest.select(&profile.name))?;
+    ProfileStore::update(|latest| {
+        latest.select(&profile.name)?;
+        latest.set_lighting_enabled(true);
+        Ok(())
+    })?;
 
     if json {
         println!(
@@ -333,12 +366,71 @@ fn apply_saved_profile(
                 schema_version: 1,
                 applied: true,
                 profile: profile.name,
+                lighting_enabled: true,
             })?
         );
     } else {
         println!("Applied saved profile {:?}", profile.name);
     }
     Ok(())
+}
+
+fn set_master_lighting(
+    enabled: bool,
+    json: bool,
+    dry_run: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let store = ProfileStore::load()?;
+    let selected = store.selected().cloned();
+    let plan = if enabled {
+        selected
+            .as_ref()
+            .ok_or("no saved profile is selected; select a profile before turning lighting on")?
+            .plan()?
+    } else {
+        all_lighting_off_plan()?
+    };
+
+    if dry_run {
+        print_plan(&plan);
+        return Ok(());
+    }
+
+    HidTransport::open()?.execute(&plan)?;
+    ProfileStore::update(|latest| {
+        latest.set_lighting_enabled(enabled);
+        Ok(())
+    })?;
+
+    let profile = selected.map(|profile| profile.name);
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&LightingResponse {
+                schema_version: 1,
+                applied: true,
+                lighting_enabled: enabled,
+                profile,
+            })?
+        );
+    } else if enabled {
+        println!(
+            "Restored selected profile {:?}",
+            profile.unwrap_or_default()
+        );
+    } else {
+        println!("Turned off all GameDAC lighting");
+    }
+    Ok(())
+}
+
+fn all_lighting_off_plan() -> Result<LightingPlan, gamedacctl::ProtocolError> {
+    LightingPlan::steady([
+        (Zone::Left, Color::BLACK),
+        (Zone::Right, Color::BLACK),
+        (Zone::MicrophoneLive, Color::BLACK),
+        (Zone::MicrophoneMuted, Color::BLACK),
+    ])
 }
 
 fn observe_input(duration: Duration) -> Result<(), Box<dyn std::error::Error>> {

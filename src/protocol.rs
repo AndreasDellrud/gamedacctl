@@ -459,6 +459,24 @@ impl LightingPlan {
         })
     }
 
+    pub fn with_steady(
+        mut self,
+        settings: impl IntoIterator<Item = (Zone, Color)>,
+    ) -> Result<Self, ProtocolError> {
+        self.features.extend(
+            settings
+                .into_iter()
+                .map(|(zone, color)| FeatureReport::steady(zone, color)),
+        );
+        let mask = zone_mask(&self.features)?;
+        self.outputs = vec![
+            OutputReport::apply(mask),
+            OutputReport::save(),
+            OutputReport::finish(),
+        ];
+        Ok(self)
+    }
+
     pub fn breathe(
         color: Color,
         duration: BreatheDuration,
