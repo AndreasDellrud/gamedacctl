@@ -61,6 +61,7 @@ Verified native behavior:
 - The commit sequence persists the chosen state after the command exits.
 - The Rust `gamedacctl` transport applies independent earcup colors, microphone live/muted colors, every explicit off target, and captured Synchronized animation without root.
 - The six-channel GameDAC default audio sink remained available and produced an audible spoken test after the controller acceptance sequence.
+- Removing the scoped udev rule and reconnecting makes non-root access fail closed; reinstalling it grants access automatically to newly enumerated interface `00` nodes after both logical and manual cable reconnects.
 
 Implemented and physically accepted through the Rust controller:
 

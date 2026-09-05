@@ -91,7 +91,7 @@ This milestone is complete. It includes filtered immutable captures, protocol sy
 
 Deliver a tested packet library and CLI for static left/right colors, off, microphone live/muted colors, and exact captured animation presets. Replace root execution with a reviewed device-access rule. Acceptance requires fixture equality, rejection tests, device reconnect tests, preserved Linux audio, and physical confirmation for every exposed command.
 
-Implementation status: the Rust packet library, HID transport boundary, CLI, dry-run output, steady/off zone controls, and guarded exact-capture replay are implemented and covered by deterministic tests. Physical tests verified non-root left/right colors, microphone live/muted colors, every earcup/microphone/all-zone off target, and exact Synchronized replay while GameDAC 5.1 audio remained functional. A deliberate physical reconnect test of the installed access rule remains before the complete milestone is closed.
+This milestone is complete. The Rust packet library, HID transport boundary, CLI, dry-run output, steady/off zone controls, and guarded exact-capture replay are covered by deterministic tests. Physical tests verified non-root left/right colors, microphone live/muted colors, every earcup/microphone/all-zone off target, and exact Synchronized replay. Removing the udev rule and logically reconnecting made access fail closed; reinstalling and both logical and manual cable reconnects restored access automatically. The GameDAC 5.1 audio function recovered after each reconnect and remained functional.
 
 ### Generated Breathe and connected modes
 
