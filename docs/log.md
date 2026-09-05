@@ -8,6 +8,14 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Select dual MIT or Apache-2.0 licensing
+
+Added the complete MIT and Apache-2.0 license texts and Cargo SPDX metadata after the owner selected the recommended Rust dual-license form. Clarified that the license covers the independently written project and does not convey rights in SteelSeries marks or third-party material; Apache contributor patent terms do not represent a patent license from SteelSeries.
+
+## [2026-09-05] release | Define the public compatibility boundary
+
+Added a release-facing compatibility matrix that limits verified support to the original GameDAC `1038:1280` with the original wired Arctis Pro, records the tested device release and Linux environment, distinguishes each accepted lighting subset from unsupported GG parity, and states that successful writes are not firmware readback. Explicitly excluded GameDAC Gen 2, Arctis Nova and wireless products, other USB identities, and multiple-device selection rather than inferring compatibility from product-family names.
+
 ## [2026-09-05] verification | Accept named ColorShift and Multi Color Breathe generation
 
 Generated a five-second red/blue two-color ColorShift after exact two-color fixture equality; the user observed a continuous path through purple rather than black. Generated a nine-second red/green/blue Multi Color Breathe; the user observed the requested order and a fade to black between each color. Restored the accepted four-zone Steady configuration. GameDAC Game 5.1 remained the default sink at 60 percent, with Chat and microphone present. The rebuilt GTK application then saved, applied, switched, and correctly reloaded one profile of each new type; persisted JSON and the status API retained their ordered color arrays and effect identities. The enabled Omarchy panel subsequently applied both profiles successfully. Product limits remain two ColorShift colors, one to four synchronized Breathe colors, single-color connected Sweep, and whole-second durations; broader GG marker and fractional-speed parity remains out of scope.

@@ -11,6 +11,7 @@ sources: []
 | Page | Summary | Status |
 | --- | --- | --- |
 | [System overview](overview.md) | Hardware, Linux audio, Windows capture, and current implementation boundaries. | current |
+| [Compatibility and support boundary](compatibility.md) | Physically verified hardware, operating environment, lighting features, and explicit exclusions. | current |
 | [USB lighting protocol](protocol.md) | Verified transport and packet layouts, inferred animation fields, and unknowns. | mixed |
 | [Capture experiments](experiments.md) | Labeled SteelSeries GG experiments and raw-trace interpretation. | mixed |
 | [Windows and capture workflow](capture-workflow.md) | Reproducible Omarchy VM passthrough and USB-monitor procedure. | current |

@@ -4,7 +4,23 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.98.1"
 description = "Linux lighting control for the original SteelSeries GameDAC"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/AndreasDellrud/gamedacctl"
+readme = "README.md"
+keywords = ["gamedac", "headset", "linux", "rgb"]
+categories = ["command-line-utilities", "hardware-support"]
 publish = false
+exclude = [
+    "/.agents/**",
+    "/.beads/**",
+    "/.claude/**",
+    "/.codex/**",
+    "/docs/raw/**",
+    "/AGENTS.md",
+    "/CLAUDE.md",
+    "/packaging/arch/**",
+    "/scripts/gamedac-rgb",
+]
 
 [dependencies]
 adw = { package = "libadwaita", version = "0.9.2", features = ["gtk_v4_22", "v1_9"] }

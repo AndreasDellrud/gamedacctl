@@ -6,6 +6,8 @@ An independent Linux lighting controller for the original wired SteelSeries Arct
 
 Current verified hardware result: `gamedacctl` can set independent Steady earcup and microphone-state colors, turn selected zones off, generate two-color ColorShift, one-to-four-color Multi Color Breathe, and connected Sweep effects, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
 
+Physical support is currently limited to the original GameDAC with the original wired Arctis Pro. GameDAC Gen 2, Arctis Nova products, wireless base stations, other SteelSeries USB identities, and multiple simultaneously connected GameDAC units are not supported. See the [compatibility matrix](docs/compatibility.md) for the tested firmware and precise feature boundaries.
+
 ## Build
 
 The project pins its Rust toolchain through [mise](https://mise.jdx.dev/):
@@ -85,6 +87,8 @@ Start with [the system overview](docs/overview.md), then use [the documentation 
 
 Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified Steady fields and the observed coefficient-record family on known zones. Durations intentionally accept only whole seconds from 1 through 30. ColorShift is limited to the verified two-color form; Multi Color Breathe accepts the manually observed one-to-four-color range. Longer ColorShift palettes, arbitrary GG marker positions, fractional GG speed mapping, and Reflected generation remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
 
+The application reports successful writes, not firmware readback. Use it at your own risk; unsupported hardware is rejected rather than probed.
+
 ## Validation
 
 ```bash
@@ -92,3 +96,7 @@ scripts/validate
 ```
 
 This checks documentation, udev and desktop packaging, formatting, linting, packet fixtures, CLI validation, profile persistence, and exact hashes for the physically verified captured presets.
+
+## License
+
+The independently written source code, documentation, and packaging are available under your choice of the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE). SteelSeries product names remain the property of their respective owner and are used only to describe compatibility.
