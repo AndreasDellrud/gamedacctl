@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] fix | Remove application-icon base band
+
+Removed the semi-transparent dark path that covered roughly the lower fifth of the full-color SVG icon. The overlay was intended to add base depth but rendered as a distinct rectangular gray band and muted part of the RGB arc. The existing body gradient and inset border retain depth without it. The corrected 512-pixel render passed SVG and project validation and was visually accepted by the user; the symbolic icon was unaffected.
+
 ## [2026-09-05] refinement | Reduce UI copy and normalize switch sizing
 
 Removed repeated group descriptions from the GTK window and retained only short, control-specific constraints. Consolidated the workflow, effect meanings, earcup timing, and master-lighting behavior into a header-level How to use dialog available by click, tooltip, keyboard focus, and F1. Renamed the window to GameDAC Lighting while retaining the original-hardware subtitle. Visual inspection found that the Omarchy GTK theme stretched suffix switches to the full preference-row height; centering the master-lighting, reverse, and reconnect switches at their natural height restored normal horizontal-pill proportions. The user accepted both the quieter text hierarchy and corrected switches.
