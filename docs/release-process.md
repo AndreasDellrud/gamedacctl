@@ -32,7 +32,7 @@ For a manual dry run, open the workflow in GitHub Actions, choose **Run workflow
 
 ## Publishing
 
-Prepare one release commit that updates the version in `Cargo.toml` and its corresponding `Cargo.lock` entry. Run `scripts/validate`, commit, and push that commit. After its main-branch dry run passes, create and push an annotated tag whose name exactly matches the Cargo version:
+Prepare one release commit on a topic branch that updates the version in `Cargo.toml` and its corresponding `Cargo.lock` entry. Run `scripts/validate`, commit, push the branch, and open a pull request. Merge only after the required **Validate and build Arch artifacts** check passes. After the merged commit's main-branch dry run passes, create and push an annotated tag whose name exactly matches the Cargo version:
 
 ```bash
 git tag -a v0.1.1 -m "gamedacctl 0.1.1"
@@ -72,4 +72,4 @@ Do not move a tag attached to a published release. Correct the problem in a new 
 
 ## Omarchy plugin
 
-The separate Omarchy adapter currently contains QML and a manifest but no compiled artifact. Omarchy installs it directly from its Git repository, so the controller release workflow does not mutate or publish the plugin repository. That repository should retain its own manifest validation on changes. Add a separate tag workflow only if Omarchy distribution begins consuming versioned release archives.
+The separate Omarchy adapter currently contains QML and a manifest but no compiled artifact. Omarchy installs it directly from its Git repository, so the controller release workflow does not mutate or publish the plugin repository. Its protected default branch requires the repository-owned **Validate Omarchy plugin** check on pull requests. Add a separate tag workflow only if Omarchy distribution begins consuming versioned release archives.
