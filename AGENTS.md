@@ -9,6 +9,15 @@ This repository documents and implements Linux control of an original SteelSerie
 - Never commit Windows credentials, device serial numbers, or downloaded proprietary installers.
 - Run `scripts/validate` before committing.
 
+## Task lifecycle
+
+For work represented by a Beads issue, implement and validate locally, close
+the issue, then commit the implementation and exported Beads closure together
+in the same pull request. The protected pull request determines whether that
+closed state reaches `main`; if validation fails, fix or reopen the issue on
+the same branch. Do not create a follow-up commit or pull request solely to
+close work that was completed by the implementation pull request.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
