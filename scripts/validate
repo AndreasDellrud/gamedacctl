@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,3 +80,33 @@ if ERRORS:
     raise SystemExit(1)
 
 print("Documentation and local links validate.")
+
+try:
+    subprocess.run(
+        ["udevadm", "verify", "packaging/udev/70-gamedacctl.rules"],
+        cwd=ROOT,
+        check=True,
+    )
+except FileNotFoundError:
+    print("Validation failed: udevadm is required to validate the packaged rule", file=sys.stderr)
+    raise SystemExit(1)
+except subprocess.CalledProcessError as error:
+    raise SystemExit(error.returncode)
+print("Packaged udev rule validates.")
+
+checks = [
+    ["cargo", "fmt", "--check"],
+    ["cargo", "clippy", "--all-targets", "--all-features", "--", "-D", "warnings"],
+    ["cargo", "test"],
+]
+for command in checks:
+    print(f"Running {' '.join(command)}...")
+    try:
+        subprocess.run(["mise", "exec", "--", *command], cwd=ROOT, check=True)
+    except FileNotFoundError:
+        print("Validation failed: mise is required to run the pinned Rust toolchain", file=sys.stderr)
+        raise SystemExit(1)
+    except subprocess.CalledProcessError as error:
+        raise SystemExit(error.returncode)
+
+print("Rust formatting, linting, and tests validate.")

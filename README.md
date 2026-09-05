@@ -1,27 +1,52 @@
-# SteelSeries GameDAC Linux control
+# gamedacctl
 
-Reverse-engineering notes and a small Linux utility for the original wired SteelSeries Arctis Pro connected through the original GameDAC.
+An independent Linux lighting controller for the original wired SteelSeries Arctis Pro connected through the original GameDAC, plus the reverse-engineering evidence behind it.
 
-Current verified result: Linux can set arbitrary steady earcup colors and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
+Current verified hardware result: Linux can set arbitrary steady earcup colors and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface. The Rust controller implements those packet boundaries but still awaits its own physical acceptance pass.
+
+## Build
+
+The project pins its Rust toolchain through [mise](https://mise.jdx.dev/):
 
 ```bash
-sudo scripts/gamedac-rgb FF00FF
+mise install
+mise exec -- cargo build
 ```
 
-The command above was physically verified: both earcups changed to magenta. Root is currently required because the relevant `hidraw` nodes are mode `0600`; a narrow udev rule remains future work.
-
-An exact animation captured from SteelSeries GG can be replayed for research without synthesizing unknown bytes:
+Dry runs construct and validate complete reports without opening the device:
 
 ```bash
-sudo scripts/gamedac-rgb \
-  --replay-pcap docs/raw/capture-connected-modes-20260905.pcapng \
+mise exec -- cargo run -- --dry-run static \
+  --left FF3700 --right 0084FF \
+  --microphone-live 00FF00 --microphone-muted FF0000
+
+mise exec -- cargo run -- --dry-run off
+```
+
+After device permissions are configured and the Rust path has passed physical acceptance, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
+
+An exact complete animation captured from SteelSeries GG can be replayed for research without synthesizing unknown bytes:
+
+```bash
+mise exec -- cargo run -- --dry-run replay \
+  --pcap docs/raw/capture-connected-modes-20260905.pcapng \
   --frames 7 11
 ```
 
 Frames 7 and 11 are the verified 10-second connected Sweep for zones 1 and 0. Frames 31 and 33 are the matching Synchronized configuration. `wireshark-cli` is required for pcap replay.
 
+The original `scripts/gamedac-rgb` Python utility remains the physically verified executable reference while the native controller is brought through hardware acceptance. It currently needs root because the relevant `hidraw` nodes are mode `0600`; the planned narrow udev rule will remove that requirement without granting access to unrelated HID devices.
+
 Start with [the system overview](docs/overview.md), then use [the documentation index](docs/index.md) for protocol evidence, capture workflow, experiment status, the native application roadmap, and legal/publication considerations.
 
 ## Safety
 
-Only packets observed from SteelSeries GG are replayed. Arbitrary animation generation remains under analysis; do not fuzz unknown commands. Do not accept GameDAC firmware updates inside the Windows VM during capture work.
+Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified steady fields, known zones, and observed apply/save reports. Arbitrary animation generation remains under analysis; do not fuzz unknown commands. Do not accept GameDAC firmware updates inside the Windows VM during capture work.
+
+## Validation
+
+```bash
+scripts/validate
+```
+
+This checks documentation, formatting, linting, packet fixtures, CLI validation, and exact hashes for the physically verified captured presets.

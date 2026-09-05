@@ -91,6 +91,8 @@ This milestone is complete. It includes filtered immutable captures, protocol sy
 
 Deliver a tested packet library and CLI for static left/right colors, off, microphone live/muted colors, and exact captured animation presets. Replace root execution with a reviewed device-access rule. Acceptance requires fixture equality, rejection tests, device reconnect tests, preserved Linux audio, and physical confirmation for every exposed command.
 
+Implementation status: the Rust packet library, HID transport boundary, CLI, dry-run output, steady/off zone controls, and guarded exact-capture replay are implemented and covered by deterministic tests. Hardware acceptance and scoped non-root device access remain before this milestone is complete.
+
 ### Generated Breathe and connected modes
 
 Resolve the animated header RGB field, implement generated Breathe duration/color packets, and verify normal and reverse connected behavior. Acceptance requires generated packets to reproduce known captures byte-for-byte before one new color/duration combination is tried on hardware. The application must provide an immediate static-black rollback.

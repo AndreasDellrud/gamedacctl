@@ -4,6 +4,7 @@ type: architecture
 status: mixed
 updated: 2026-09-05
 sources:
+  - src/protocol.rs
   - scripts/gamedac-rgb
   - docs/raw/capture-effects-20260904-2323.usbmon
   - docs/raw/capture-zones-20260904.usbmon
@@ -164,3 +165,5 @@ Therefore zone 2 is definitively the microphone live/unmuted state and zone 3 th
 - Structurally understood but not yet directly verified as generated packets: arbitrary Breathe color/duration and connected reverse.
 - Captured but not safe to synthesize yet: arbitrary ColorShift, Multi Color Breathe, and Reflected behavior.
 - Out of scope without new evidence: firmware operations and unknown opcodes.
+
+The native `gamedacctl` protocol layer encodes this boundary as typed zones, exact-size reports, strict color parsing, computed zone masks, and rejection of captured reports with unexpected length, prefix, repeated zone, zone range, or mode marker. Its dry-run path performs no HID discovery or writes. Physical acceptance of the Rust transport remains pending even though its report bytes match the verified Python construction.
