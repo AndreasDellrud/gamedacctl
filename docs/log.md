@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] verification | Pass Omarchy marketplace compliance
+
+Audited the public adapter against the stable Omarchy plugin publishing guide, development guide, Quattro first-party plugin reference, live submission form, and marketplace implementation. The marketplace validator initially rejected the dual-license filenames because it recognizes only a root `LICENSE`, `LICENCE`, or `COPYING` form. Plugin commit `dac989636fa485830e6bce3f4e96f324cdd60f93` adds a recognized root license notice, explicit `MIT OR Apache-2.0` manifest metadata, safe removal instructions, and stronger repository validation for marketplace field limits, supported kinds, documentation, license discovery, entry-point paths, symlinks, and optional local QML linting. The required plugin workflow passed, then the marketplace's exact public-snapshot structural check reported Quattro compatibility and detected the README, license, manifest, and preview. Its deterministic security baseline reported `passed`, no findings, no review capabilities, and a clear publication disposition. The direct `Panel.qml` bar-widget entry point remains valid because the current official Quattro reference documents the same pattern for multiple first-party widgets and the implementation has already passed lifecycle acceptance. Submission itself remains pending explicit owner confirmation of every marketplace checklist statement.
+
 ## [2026-09-05] operations | Protect public default branches
 
 Protected `main` in both public repositories with administrator enforcement, pull requests, current required checks, resolved conversations, and linear history. Force-pushes and branch deletion are disabled. The controller requires **Validate and build Arch artifacts**; the Omarchy adapter gained a repository-owned manifest, entry-point, path, symlink, and whitespace validator and requires **Validate Omarchy plugin**. Zero approving reviews are required so a sole maintainer can merge a green pull request without weakening the no-direct-push boundary. Release tags remain outside the branch-scoped policy.
