@@ -39,7 +39,7 @@ jobs:
       - name: Install pinned-environment build dependencies
         run: >-
           pacman -Syu --noconfirm --needed
-          desktop-file-utils git gtk4 jq libadwaita mise python systemd wireshark-cli
+          desktop-file-utils git gtk4 jq libadwaita mise python rustup systemd wireshark-cli
 
       - name: Check out the release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
