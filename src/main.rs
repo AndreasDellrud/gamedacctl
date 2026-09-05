@@ -9,8 +9,10 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use gamedacctl::{
     BreatheDuration, BreatheMode, Color, LightingPlan, Zone,
     capture::extract_plan,
+    profile::{ProfileLighting, ProfileStore},
     transport::{HidTransport, Transport},
 };
+use serde::Serialize;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -28,6 +30,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Report controller availability and saved profiles.
+    Status {
+        /// Emit the stable machine-readable response.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Work with profiles saved by the desktop application.
+    #[command(subcommand)]
+    Profile(ProfileCommand),
     /// Set one or more verified steady-color zones.
     Static(StaticArgs),
     /// Disable illumination by setting selected zones to verified steady black.
@@ -60,6 +71,46 @@ enum Command {
         #[arg(long, required = true, num_args = 1.., value_delimiter = ',')]
         frames: Vec<u32>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileCommand {
+    /// Apply a saved profile and make it the selected profile.
+    Apply {
+        #[arg(value_name = "NAME")]
+        name: String,
+        /// Emit the stable machine-readable response.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Serialize)]
+struct StatusResponse {
+    schema_version: u32,
+    device: DeviceStatus,
+    apply_on_reconnect: bool,
+    profiles: Vec<ProfileSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct DeviceStatus {
+    state: &'static str,
+    message: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileSummary {
+    name: String,
+    selected: bool,
+    effect: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ApplyResponse {
+    schema_version: u32,
+    applied: bool,
+    profile: String,
 }
 
 #[derive(Debug, Args)]
@@ -108,6 +159,17 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let plan = match cli.command {
+        Command::Status { json } => {
+            if cli.dry_run {
+                return Err("--dry-run is not meaningful for status queries".into());
+            }
+            print_status(json)?;
+            return Ok(());
+        }
+        Command::Profile(ProfileCommand::Apply { name, json }) => {
+            apply_saved_profile(&name, json, cli.dry_run)?;
+            return Ok(());
+        }
         Command::Static(args) => LightingPlan::steady(
             [
                 (Zone::Left, args.left),
@@ -165,6 +227,94 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>()
         .join(", ");
     println!("Applied GameDAC lighting configuration to {zones}");
+    Ok(())
+}
+
+fn print_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let store = ProfileStore::load()?;
+    let device = match HidTransport::open() {
+        Ok(_) => DeviceStatus {
+            state: "ready",
+            message: "Ready".to_owned(),
+        },
+        Err(gamedacctl::transport::TransportError::NotFound) => DeviceStatus {
+            state: "disconnected",
+            message: "Disconnected".to_owned(),
+        },
+        Err(gamedacctl::transport::TransportError::Open(_)) => DeviceStatus {
+            state: "permission-denied",
+            message: "Permission denied; check the scoped udev rule".to_owned(),
+        },
+        Err(error) => DeviceStatus {
+            state: "error",
+            message: error.to_string(),
+        },
+    };
+    let response = StatusResponse {
+        schema_version: 1,
+        device,
+        apply_on_reconnect: store.apply_on_reconnect,
+        profiles: store
+            .profiles
+            .iter()
+            .map(|profile| ProfileSummary {
+                name: profile.name.clone(),
+                selected: store.last_selected.as_deref() == Some(profile.name.as_str()),
+                effect: match profile.lighting {
+                    ProfileLighting::Static { .. } => "static",
+                    ProfileLighting::Breathe { .. } => "breathe",
+                },
+            })
+            .collect(),
+    };
+
+    if json {
+        println!("{}", serde_json::to_string(&response)?);
+    } else {
+        println!("GameDAC: {}", response.device.message);
+        println!("Saved profiles: {}", response.profiles.len());
+        if let Some(selected) = response.profiles.iter().find(|profile| profile.selected) {
+            println!("Selected profile: {}", selected.name);
+        }
+    }
+    Ok(())
+}
+
+fn apply_saved_profile(
+    name: &str,
+    json: bool,
+    dry_run: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut store = ProfileStore::load()?;
+    let profile = store
+        .profiles
+        .iter()
+        .find(|profile| profile.name == name)
+        .cloned()
+        .ok_or_else(|| format!("saved profile {name:?} was not found"))?;
+    let plan = profile.plan()?;
+
+    if dry_run {
+        print_plan(&plan);
+        return Ok(());
+    }
+
+    HidTransport::open()?.execute(&plan)?;
+    store.last_selected = Some(profile.name.clone());
+    store.save()?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&ApplyResponse {
+                schema_version: 1,
+                applied: true,
+                profile: profile.name,
+            })?
+        );
+    } else {
+        println!("Applied saved profile {:?}", profile.name);
+    }
     Ok(())
 }
 

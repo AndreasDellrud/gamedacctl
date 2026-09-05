@@ -8,6 +8,14 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] verification | Accept Omarchy adapter interactions
+
+Human inspection confirmed that the locally enabled GameDAC bar icon and panel interactions work as intended. Together with the prior manifest, lifecycle, contained-failure, shell-responsiveness, and real profile-apply checks, this completes the thin Omarchy adapter implementation acceptance. Publishing its separate repository remains release work.
+
+## [2026-09-05] implementation | Add thin Omarchy controller adapter
+
+Added versioned `status --json` and saved-profile apply commands as the stable native integration boundary, with CLI tests for machine-readable status, missing profiles, and dry-run state preservation. Created the separate manifest-root `omarchy-gamedacctl` project with an on-demand headset bar widget and profile panel containing no USB, packet, polling, shell interpolation, or privilege logic. Omarchy 4.0.1 accepted the manifest; local add, enable, open, hot reload, disable, removal, and re-add paths completed. A missing executable and a missing profile stayed contained while the shell continued answering IPC. A real `Everyday` profile request through plugin IPC completed and atomically rewrote the selected profile store. The plugin remains locally enabled pending human visual acceptance and publication.
+
 ## [2026-09-05] discovery | Test passive HID reconnect readiness
 
 Added a bounded research-only `observe-input` command that reads unsolicited 64-byte reports without sending HID data. A settled three-second sample received no input. A complete 60-second manual upstream reconnect trial recorded input failure at 19.392 seconds, device absence at 19.647 seconds, and renewed `/dev/hidraw15` access at 35.176 seconds, but no input report before removal or after access returned. Existing captured `0x10` and `0x20` reports therefore cannot yet replace the physically accepted four-second post-access fallback. An unobserved feature-read or firmware query remains prohibited; the Beads task stays open for a repeatable raw reconnect capture.

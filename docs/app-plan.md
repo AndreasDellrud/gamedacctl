@@ -1,12 +1,13 @@
 ---
 title: Native application plan
 type: plan
-status: target
+status: mixed
 updated: 2026-09-05
 sources:
   - docs/protocol.md
   - docs/experiments.md
   - scripts/gamedac-rgb
+  - src/main.rs
 ---
 
 # Native application plan
@@ -108,6 +109,19 @@ This functional milestone is complete. The current Rust GTK4/libadwaita window e
 ### Omarchy adapter
 
 Publish a separate thin shell plugin with a bar indicator and profile panel. Validate it with `omarchy plugin validate`, confirm shell reload behavior, and prove that controller failure cannot destabilize `omarchy-shell`.
+
+The implementation candidate now exists as the separate manifest-root
+`omarchy-gamedacctl` project. It invokes the versioned `status --json` query
+only when opened or explicitly refreshed and invokes `profile apply NAME
+--json` only on selection; no timer, HID access, packet construction, shell
+command interpolation, or privilege path lives in QML. Its manifest validates
+under Omarchy 4.0.1. Local add, enable, panel open, source reload, disable,
+removal, and re-add all succeeded. Both a missing controller executable and a
+missing profile were contained as panel errors while `omarchy-shell` remained
+responsive. Applying the saved `Everyday` profile through plugin IPC completed
+all controller writes and updated the profile-store timestamp. Human acceptance
+confirmed that the bar icon, panel, status, and profile interaction behave as
+intended. Public publication remains part of the release milestone.
 
 ### Public release
 

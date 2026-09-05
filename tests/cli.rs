@@ -1,7 +1,99 @@
-use std::process::Command;
+use std::{fs, process::Command};
+
+use serde_json::Value;
+use tempfile::tempdir;
 
 fn gamedacctl() -> Command {
     Command::new(env!("CARGO_BIN_EXE_gamedacctl"))
+}
+
+fn profile_store(config_home: &std::path::Path) {
+    let path = config_home.join("gamedacctl/profiles.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        path,
+        r##"{
+  "schema_version": 1,
+  "last_selected": "Everyday",
+  "apply_on_reconnect": true,
+  "profiles": [
+    {
+      "name": "Everyday",
+      "lighting": {
+        "effect": "breathe",
+        "color": "7A21E6",
+        "seconds": 10,
+        "mode": "synchronized",
+        "reverse": false
+      }
+    }
+  ]
+}"##,
+    )
+    .unwrap();
+}
+
+#[test]
+fn status_json_reports_profiles_and_a_machine_readable_device_state() {
+    let config_home = tempdir().unwrap();
+    profile_store(config_home.path());
+    let output = gamedacctl()
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .args(["status", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["schema_version"], 1);
+    assert!(response["device"]["state"].is_string());
+    assert_eq!(response["apply_on_reconnect"], true);
+    assert_eq!(response["profiles"][0]["name"], "Everyday");
+    assert_eq!(response["profiles"][0]["selected"], true);
+    assert_eq!(response["profiles"][0]["effect"], "breathe");
+}
+
+#[test]
+fn saved_profile_apply_dry_run_does_not_open_hid_or_rewrite_store() {
+    let config_home = tempdir().unwrap();
+    profile_store(config_home.path());
+    let path = config_home.path().join("gamedacctl/profiles.json");
+    let before = fs::read(&path).unwrap();
+    let output = gamedacctl()
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .args(["--dry-run", "profile", "apply", "Everyday", "--json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("feature zone=right")
+    );
+    assert_eq!(fs::read(path).unwrap(), before);
+}
+
+#[test]
+fn missing_saved_profile_fails_without_opening_hid() {
+    let config_home = tempdir().unwrap();
+    profile_store(config_home.path());
+    let output = gamedacctl()
+        .env("XDG_CONFIG_HOME", config_home.path())
+        .args(["--dry-run", "profile", "apply", "Missing"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("was not found")
+    );
 }
 
 #[test]

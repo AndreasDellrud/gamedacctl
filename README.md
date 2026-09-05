@@ -23,6 +23,20 @@ mise exec -- cargo run --bin gamedacctl-gui
 
 The GUI edits verified static and single-color Breathe/Sweep settings, saves versioned profiles under the user's XDG configuration directory, and can optionally restore the last selected saved profile after reconnect. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
 
+The CLI also exposes a versioned, machine-readable surface for thin desktop
+integrations:
+
+```bash
+gamedacctl status --json
+gamedacctl profile apply Everyday --json
+```
+
+`status` opens the known HID interface without writing and reports `ready`,
+`disconnected`, `permission-denied`, or `error` together with saved-profile
+summaries. Applying a profile records it as selected only after every HID write
+succeeds. The optional Omarchy adapter lives in the separate manifest-root
+`omarchy-gamedacctl` project and calls only these commands.
+
 Dry runs construct and validate complete reports without opening the device:
 
 ```bash
