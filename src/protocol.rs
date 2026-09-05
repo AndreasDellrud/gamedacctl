@@ -14,6 +14,47 @@ pub enum Zone {
     MicrophoneMuted = 3,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BreatheMode {
+    Synchronized,
+    Sweep,
+}
+
+impl BreatheMode {
+    const fn phase_flag(self) -> u8 {
+        match self {
+            Self::Synchronized => 0,
+            Self::Sweep => 1,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BreatheDuration {
+    seconds: u16,
+}
+
+impl BreatheDuration {
+    pub fn from_seconds(seconds: u16) -> Result<Self, ProtocolError> {
+        if !(1..=30).contains(&seconds) {
+            return Err(ProtocolError::InvalidBreatheDuration(seconds));
+        }
+        Ok(Self { seconds })
+    }
+
+    pub const fn seconds(self) -> u16 {
+        self.seconds
+    }
+
+    const fn ticks_20ms(self) -> u16 {
+        self.seconds * 50
+    }
+
+    const fn centiseconds(self) -> u16 {
+        self.seconds * 100
+    }
+}
+
 impl Zone {
     pub const fn id(self) -> u8 {
         self as u8
@@ -105,6 +146,10 @@ pub enum ProtocolError {
     UnsupportedMode(u8),
     #[error("at least one lighting zone must be selected")]
     EmptyPlan,
+    #[error("Breathe duration must be a whole number from 1 through 30 seconds; got {0}")]
+    InvalidBreatheDuration(u16),
+    #[error("reverse direction is observed only for connected Sweep mode")]
+    ReverseRequiresSweep,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,6 +205,59 @@ impl FeatureReport {
             bytes: report,
             zone,
         })
+    }
+
+    pub fn breathe(
+        zone: Zone,
+        header_color: Color,
+        effect_color: Color,
+        duration: BreatheDuration,
+        mode: BreatheMode,
+        reverse: bool,
+    ) -> Result<Self, ProtocolError> {
+        if reverse && mode != BreatheMode::Sweep {
+            return Err(ProtocolError::ReverseRequiresSweep);
+        }
+
+        let mut bytes = [0; FEATURE_REPORT_LEN];
+        let [header_red, header_green, header_blue] = header_color.bytes();
+        bytes[..12].copy_from_slice(&[
+            0xAA,
+            zone.id(),
+            header_red,
+            header_green,
+            header_blue,
+            0xFF,
+            0x32,
+            0xC8,
+            0xC8,
+            0x00,
+            zone.id(),
+            0x00,
+        ]);
+
+        let ticks = duration.ticks_20ms();
+        let rates = effect_color
+            .bytes()
+            .map(|channel| (((channel as u16) << 4) / ticks) as u8);
+        for (offset, rate) in rates.into_iter().enumerate() {
+            bytes[12 + offset] = 0u8.wrapping_sub(rate);
+            bytes[20 + offset] = rate;
+        }
+        bytes[16..18].copy_from_slice(&ticks.to_le_bytes());
+        bytes[18] = 0x01;
+        bytes[24..26].copy_from_slice(&ticks.to_le_bytes());
+
+        for (channel, offset) in effect_color.bytes().into_iter().zip([140, 142, 144]) {
+            bytes[offset..offset + 2].copy_from_slice(&((channel as u16) << 4).to_le_bytes());
+        }
+        bytes[146] = 0xFF;
+        bytes[152] = mode.phase_flag();
+        bytes[156..160].copy_from_slice(&[0x01, 0x00, 0x02, 0x00]);
+        bytes[160..162].copy_from_slice(&duration.centiseconds().to_le_bytes());
+        bytes[162] = u8::from(reverse);
+
+        Ok(Self { bytes, zone })
     }
 
     pub const fn zone(&self) -> Zone {
@@ -233,6 +331,19 @@ impl LightingPlan {
                 OutputReport::finish(),
             ],
         })
+    }
+
+    pub fn breathe(
+        color: Color,
+        duration: BreatheDuration,
+        mode: BreatheMode,
+        reverse: bool,
+    ) -> Result<Self, ProtocolError> {
+        let features = [Zone::Right, Zone::Left]
+            .into_iter()
+            .map(|zone| FeatureReport::breathe(zone, color, color, duration, mode, reverse))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::captured(features)
     }
 
     pub fn features(&self) -> &[FeatureReport] {
@@ -368,6 +479,36 @@ mod tests {
         assert_eq!(
             LightingPlan::captured(Vec::new()).unwrap_err(),
             ProtocolError::EmptyPlan
+        );
+    }
+
+    #[test]
+    fn breathe_duration_is_restricted_to_captured_safe_range() {
+        assert_eq!(
+            BreatheDuration::from_seconds(0).unwrap_err(),
+            ProtocolError::InvalidBreatheDuration(0)
+        );
+        assert_eq!(BreatheDuration::from_seconds(1).unwrap().seconds(), 1);
+        assert_eq!(BreatheDuration::from_seconds(30).unwrap().seconds(), 30);
+        assert_eq!(
+            BreatheDuration::from_seconds(31).unwrap_err(),
+            ProtocolError::InvalidBreatheDuration(31)
+        );
+    }
+
+    #[test]
+    fn reverse_is_rejected_outside_observed_sweep_mode() {
+        assert_eq!(
+            FeatureReport::breathe(
+                Zone::Left,
+                Color::BLACK,
+                Color::new(0x12, 0x34, 0x56),
+                BreatheDuration::from_seconds(5).unwrap(),
+                BreatheMode::Synchronized,
+                true,
+            )
+            .unwrap_err(),
+            ProtocolError::ReverseRequiresSweep
         );
     }
 }

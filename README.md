@@ -2,7 +2,9 @@
 
 An independent Linux lighting controller for the original wired SteelSeries Arctis Pro connected through the original GameDAC, plus the reverse-engineering evidence behind it.
 
-Current verified hardware result: `gamedacctl` can set independent steady earcup and microphone-state colors, turn selected zones off, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
+`gamedacctl` is an unofficial community project. It is not affiliated with, endorsed by, or supported by SteelSeries. Product names are used only to describe compatibility.
+
+Current verified hardware result: `gamedacctl` can set independent steady earcup and microphone-state colors, turn selected zones off, generate single-color Breathe and connected Sweep effects, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
 
 ## Build
 
@@ -21,6 +23,12 @@ mise exec -- cargo run -- --dry-run static \
   --microphone-live 00FF00 --microphone-muted FF0000
 
 mise exec -- cargo run -- --dry-run off
+
+mise exec -- cargo run -- --dry-run breathe \
+  --color 7A21E6 --seconds 10 --mode synchronized
+
+mise exec -- cargo run -- --dry-run breathe \
+  --color 2468AC --seconds 5 --mode sweep --reverse
 ```
 
 After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
@@ -41,7 +49,7 @@ Start with [the system overview](docs/overview.md), then use [the documentation 
 
 ## Safety
 
-Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified steady fields, known zones, and observed apply/save reports. Arbitrary animation generation remains under analysis; do not fuzz unknown commands. Do not accept GameDAC firmware updates inside the Windows VM during capture work.
+Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified steady fields and the byte-for-byte reproduced single-color Breathe layout on known zones. Breathe durations intentionally accept only whole seconds from 1 through 30; multicolor, ColorShift, and Reflected generation remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
 
 ## Validation
 

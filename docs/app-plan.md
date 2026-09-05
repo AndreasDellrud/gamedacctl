@@ -97,6 +97,8 @@ This milestone is complete. The Rust packet library, HID transport boundary, CLI
 
 Resolve the animated header RGB field, implement generated Breathe duration/color packets, and verify normal and reverse connected behavior. Acceptance requires generated packets to reproduce known captures byte-for-byte before one new color/duration combination is tried on hardware. The application must provide an immediate static-black rollback.
 
+This milestone is complete for single-color Breathe, Synchronized, and Sweep. Generated reports match eight Engine fixtures byte-for-byte, and a new purple 10-second Synchronized case plus five-second Sweep were physically accepted with static rollback. The builder uses the requested effect color as safe retained header state, accepts only whole seconds from 1 through 30, and rejects reverse outside Sweep. Engine's reverse flag is reproduced exactly, although its visible direction could not be distinguished from normal reliably on two alternating zones after the apply flash. Reflected, ColorShift, and multicolor generation remain fail-closed.
+
 ### Desktop application
 
 Add the profile model and native GUI over the stable core. Acceptance requires no root prompt, correct disconnected/error states, persistence across application restarts, and no change to the system audio profile.

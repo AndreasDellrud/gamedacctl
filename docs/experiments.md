@@ -89,6 +89,10 @@ Linux then replayed the exact captured reports:
 - Frames 31 and 33: user observed both earcups breathing together, verifying Synchronized.
 - Frames 175 and 177 from the larger capture: user observed synchronized 5-second Breathe, verifying complete animated replay at a second duration.
 
-## Next experiment
+## Generated animation acceptance
 
-Before exposing generated animations, resolve the role of header RGB offsets 2–4 by capturing a freshly selected animation after distinct static start colors and observing both endpoint colors. Then generate one packet whose fields reproduce an existing capture exactly, followed by one new color/duration combination with a rollback to static black.
+The Rust builder reproduced eight complete Engine reports byte-for-byte: normal Sweep, reversed Sweep, and Synchronized for both earcups at `#2468AC`/10 seconds, plus both earcups of the `#123456`/5-second Synchronized case with their distinct retained headers.
+
+The new combination `#7A21E6`/10-second Synchronized was then generated rather than replayed. Both earcups pulsed together at the expected pace, but did not fade completely to black. Five-second normal Sweep visibly began left-to-right and alternated. The matching reversed packet was applied repeatedly; it still appeared to begin left-to-right, but a simultaneous apply flash obscured startup and a repeating two-zone alternation makes direction intrinsically difficult to distinguish. The static orange-left/blue-right and green-live/red-muted configuration was restored afterward.
+
+This accepts generated single-color Breathe and Sweep while retaining two explicit unknowns: the waveform's nonzero brightness floor and the visible meaning of Engine's reverse flag. Reflected, ColorShift, and multicolor synthesis remain disabled.

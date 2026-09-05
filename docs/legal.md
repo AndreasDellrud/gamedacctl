@@ -48,6 +48,8 @@ Swedish §§26g and 26h expressly invalidate contract terms that restrict their 
 
 Use “SteelSeries,” “Arctis Pro,” and “GameDAC” only as necessary to describe compatibility. Choose an original application name and artwork, avoid SteelSeries logos and trade dress, and state prominently that the project is independent and not affiliated with or endorsed by SteelSeries.
 
+The accepted public project, package, and binary name is `gamedacctl`; the GitHub repository is `AndreasDellrud/gamedacctl`. The Unix-style `ctl` suffix describes a controller without presenting it as an official SteelSeries product. A 2026-09-05 exact GitHub repository-name search returned only this project, and crates.io returned no package with the name. The repository description says “Unofficial Linux lighting control,” and the README carries the explicit non-affiliation and compatibility-only disclaimer. No logo or other artwork is currently shipped; future artwork must be original and avoid SteelSeries trade dress.
+
 ### Copied expression and assets
 
 Do not copy GG source or object code, UI artwork, icons, screenshots as application assets, sounds, documentation prose, firmware, fonts, or installers. Implement the documented behavior independently. Release binaries should generate supported packets rather than bundle GG components.

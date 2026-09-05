@@ -70,3 +70,71 @@ fn off_defaults_to_earcups_only() {
     assert!(!stdout.contains("feature zone=microphone"));
     assert!(stdout.contains("zone-mask=0x03"));
 }
+
+#[test]
+fn breathe_dry_run_generates_both_earcups_and_connected_fields() {
+    let output = gamedacctl()
+        .args([
+            "--dry-run",
+            "breathe",
+            "--color",
+            "2468ac",
+            "--seconds",
+            "10",
+            "--mode",
+            "sweep",
+            "--reverse",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("feature zone=right length=1024 bytes=AA 01 24 68 AC"));
+    assert!(stdout.contains("feature zone=left length=1024 bytes=AA 00 24 68 AC"));
+    assert!(stdout.contains("FF FD FB 00 F4 01 01 00 01 03 05 00 F4 01"));
+    assert!(stdout.contains("output length=64 bytes=A5 03 0A"));
+    assert!(stdout.contains("zone-mask=0x03"));
+}
+
+#[test]
+fn breathe_rejects_unverified_durations_and_invalid_reverse_mode() {
+    for seconds in ["0", "31"] {
+        let output = gamedacctl()
+            .args([
+                "--dry-run",
+                "breathe",
+                "--color",
+                "123456",
+                "--seconds",
+                seconds,
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("whole number from 1 through 30 seconds")
+        );
+    }
+
+    let output = gamedacctl()
+        .args([
+            "--dry-run",
+            "breathe",
+            "--color",
+            "123456",
+            "--seconds",
+            "5",
+            "--reverse",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("reverse direction is observed only")
+    );
+}

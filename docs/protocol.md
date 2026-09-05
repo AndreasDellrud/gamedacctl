@@ -120,7 +120,7 @@ The complete Breathe reports use these fields; unlisted bytes from 28 through 13
 | 152 | Connected phase flag: `01` Sweep, `00` Synchronized. | physically verified |
 | 156–159 | Constant `01 00 02 00` in captured animations. | observed |
 | 160–161 | Little-endian duration in centiseconds. | verified |
-| 162 | Reverse flag; `01` appeared for reversed Sweep. | observed, not physically replayed |
+| 162 | Engine reverse flag; `01` appeared for reversed Sweep. | exact-generation verified; visible direction remains ambiguous |
 
 The experiment used 5, 15, and 25 seconds rather than categorical slow, medium, and fast values. Their two duration encodings are exact:
 
@@ -131,11 +131,11 @@ The experiment used 5, 15, and 25 seconds rather than categorical slow, medium, 
 | 15 s | `EE 02` = 750 | `DC 05` = 1,500 |
 | 25 s | `E2 04` = 1,250 | `C4 09` = 2,500 |
 
-For color `#123456` at 5 seconds, the stored 12-bit channels are `0x120`, `0x340`, and `0x560`. Integer division by 250 gives coefficients 1, 3, and 5, exactly matching the captured negative and positive records. The same relationship holds for `#2468AC` at 10 seconds and the other controlled durations. This is sufficient to describe packet construction, but arbitrary generated packets remain unverified.
+For color `#123456` at 5 seconds, the stored 12-bit channels are `0x120`, `0x340`, and `0x560`. Integer division by 250 gives coefficients 1, 3, and 5, exactly matching the captured negative and positive records. The same relationship holds for `#2468AC` at 10 seconds and the other controlled durations. The generated reports reproduce eight Engine fixtures byte-for-byte across Synchronized, Sweep, reverse, 5-second, and 10-second cases. A new `#7A21E6` 10-second Synchronized combination then pulsed both earcups together on hardware. It did not fade completely to black, so no zero-minimum claim is made.
 
 ### Connected phase and direction behavior
 
-The focused capture proves that Engine can send different animated payloads to each earcup. Animation headers can retain prior RGB values while the nibble-packed color at bytes 140–145 changes to the value entered in GG. For example, focused `#2468AC` reports retained header `FF3C00` but encoded `40 02 80 06 C0 0A` at bytes 140–145. Therefore offsets 2–4 must not yet be treated as the sole animated color.
+The focused capture proves that Engine can send different animated payloads to each earcup. Animation headers can retain prior RGB values while the nibble-packed color at bytes 140–145 changes to the value entered in GG. For example, focused `#2468AC` reports retained header `FF3C00` but encoded `40 02 80 06 C0 0A` at bytes 140–145. Offsets 2–4 are therefore retained or initial state, not the authoritative effect color. The normal builder safely sets the header and effect color to the same requested value; that construction was physically verified with the new purple Synchronized case. Fixture tests can supply the historical header separately to reproduce captures exactly.
 
 With color `#2468AC` and duration 10 seconds held constant, Sweep normal and Synchronized packets were identical except at byte 152. Native replays physically showed Sweep alternating between earcups and Synchronized breathing together:
 
@@ -144,7 +144,7 @@ Sweep:        byte 152 = 01
 Synchronized: byte 152 = 00
 ```
 
-Reversing Sweep changed only byte 162 from `00` to `01`. With identical color and duration, GG sent no replacement feature report for reversed Synchronized, Reflected, or reversed Reflected—only `AC` and `09` commits. Their distinct physical semantics, if any on this headset, remain unverified.
+Reversing Sweep changed only byte 162 from `00` to `01`. Generated normal and reverse packets both matched their Engine captures byte-for-byte and were sent successfully at five seconds. Normal Sweep was observed beginning left-to-right. The reverse run also appeared left-to-right, but every apply briefly illuminated both earcups and a repeating two-zone alternation has no persistent visual direction; the physical meaning of reversal could not be distinguished reliably. The CLI name therefore means “emit Engine's captured reverse flag,” not a promise about visible startup order. With identical color and duration, GG sent no replacement feature report for reversed Synchronized, Reflected, or reversed Reflected—only `AC` and `09` commits. Their distinct physical semantics, if any on this headset, remain unverified.
 
 ### Microphone zones
 
@@ -161,9 +161,9 @@ Therefore zone 2 is definitively the microphone live/unmuted state and zone 3 th
 
 - Safe and verified: arbitrary steady color, both zones, with zero-filled remainder.
 - Safe and verified: byte-for-byte replay of captured Breathe, connected Sweep, and Synchronized reports.
+- Safe and verified: generated single-color Breathe, Synchronized, and Sweep reports for whole-second durations from 1 through 30 seconds; reverse emits the exact Engine-observed flag but its visible direction is ambiguous.
 - Safe to implement from already verified static fields: black/off, independent left/right steady colors, and mic live/muted steady colors.
-- Structurally understood but not yet directly verified as generated packets: arbitrary Breathe color/duration and connected reverse.
 - Captured but not safe to synthesize yet: arbitrary ColorShift, Multi Color Breathe, and Reflected behavior.
 - Out of scope without new evidence: firmware operations and unknown opcodes.
 
-The native `gamedacctl` protocol layer encodes this boundary as typed zones, exact-size reports, strict color parsing, computed zone masks, and rejection of captured reports with unexpected length, prefix, repeated zone, zone range, or mode marker. Its dry-run path performs no HID discovery or writes. Physical acceptance verified the Rust transport with independent steady earcup colors, both microphone states, earcup-only, microphone-only, and all-zone off, and exact Synchronized replay while GameDAC audio remained functional.
+The native `gamedacctl` protocol layer encodes this boundary as typed zones and Breathe modes, bounded duration values, exact-size reports, strict color parsing, computed zone masks, and rejection of unsupported reverse/mode combinations or captured reports with unexpected length, prefix, repeated zone, zone range, or mode marker. Its dry-run path performs no HID discovery or writes. Physical acceptance verified the Rust transport with independent steady earcup colors, both microphone states, every off target, exact Synchronized replay, generated Synchronized and Sweep, and restored static rollback while GameDAC audio remained functional.

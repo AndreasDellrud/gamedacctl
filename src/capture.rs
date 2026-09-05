@@ -101,7 +101,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::*;
-    use crate::Zone;
+    use crate::{BreatheDuration, BreatheMode, Color, FeatureReport, Zone};
 
     fn capture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -160,6 +160,48 @@ mod tests {
             sha256(plan.features()[1].bytes()),
             "955972d108e471a359dfb6da8b83613099716c4cf2edbe887a566ce396acc54b"
         );
+    }
+
+    #[test]
+    fn generated_breathe_reports_match_engine_captures_byte_for_byte() {
+        let connected = capture("capture-connected-modes-20260905.pcapng");
+        let duration = BreatheDuration::from_seconds(10).unwrap();
+        let header = Color::new(0xFF, 0x3C, 0x00);
+        let effect = Color::new(0x24, 0x68, 0xAC);
+
+        for (frame, zone, mode, reverse) in [
+            (7, Zone::Right, BreatheMode::Sweep, false),
+            (11, Zone::Left, BreatheMode::Sweep, false),
+            (21, Zone::Right, BreatheMode::Sweep, true),
+            (23, Zone::Left, BreatheMode::Sweep, true),
+            (31, Zone::Right, BreatheMode::Synchronized, false),
+            (33, Zone::Left, BreatheMode::Synchronized, false),
+        ] {
+            let captured = extract_report(&connected, frame).unwrap();
+            let generated =
+                FeatureReport::breathe(zone, header, effect, duration, mode, reverse).unwrap();
+            assert_eq!(generated.bytes(), captured.bytes(), "frame {frame}");
+        }
+
+        let independent = capture("capture-full-effects-mic-20260905.pcapng");
+        let duration = BreatheDuration::from_seconds(5).unwrap();
+        let effect = Color::new(0x12, 0x34, 0x56);
+        for (frame, zone, header) in [
+            (175, Zone::Right, Color::new(0x01, 0x02, 0x03)),
+            (177, Zone::Left, effect),
+        ] {
+            let captured = extract_report(&independent, frame).unwrap();
+            let generated = FeatureReport::breathe(
+                zone,
+                header,
+                effect,
+                duration,
+                BreatheMode::Synchronized,
+                false,
+            )
+            .unwrap();
+            assert_eq!(generated.bytes(), captured.bytes(), "frame {frame}");
+        }
     }
 
     #[test]

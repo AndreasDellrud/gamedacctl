@@ -2,7 +2,7 @@ use std::{path::PathBuf, process::ExitCode};
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use gamedacctl::{
-    Color, LightingPlan, Zone,
+    BreatheDuration, BreatheMode, Color, LightingPlan, Zone,
     capture::extract_plan,
     transport::{HidTransport, Transport},
 };
@@ -30,6 +30,18 @@ enum Command {
         #[arg(long, value_enum, default_value_t = OffTarget::Earcups)]
         target: OffTarget,
     },
+    /// Generate a single-color Breathe or connected Sweep effect.
+    Breathe {
+        #[arg(long, value_name = "RRGGBB")]
+        color: Color,
+        #[arg(long, value_name = "SECONDS")]
+        seconds: u16,
+        #[arg(long, value_enum, default_value_t = BreatheModeArg::Synchronized)]
+        mode: BreatheModeArg,
+        /// Reverse the connected direction; valid only with --mode sweep.
+        #[arg(long)]
+        reverse: bool,
+    },
     /// Replay exact, complete lighting reports from an immutable capture.
     Replay {
         #[arg(long)]
@@ -56,6 +68,21 @@ enum OffTarget {
     Earcups,
     Microphone,
     All,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum BreatheModeArg {
+    Synchronized,
+    Sweep,
+}
+
+impl From<BreatheModeArg> for BreatheMode {
+    fn from(value: BreatheModeArg) -> Self {
+        match value {
+            BreatheModeArg::Synchronized => Self::Synchronized,
+            BreatheModeArg::Sweep => Self::Sweep,
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -93,6 +120,17 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 (Zone::MicrophoneMuted, Color::BLACK),
             ],
         })?,
+        Command::Breathe {
+            color,
+            seconds,
+            mode,
+            reverse,
+        } => LightingPlan::breathe(
+            color,
+            BreatheDuration::from_seconds(seconds)?,
+            mode.into(),
+            reverse,
+        )?,
         Command::Replay { pcap, frames } => extract_plan(&pcap, &frames)?,
     };
 
