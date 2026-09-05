@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Publish and verify v0.1.3
+
+Published the immutable annotated `v0.1.3` tag at commit `a54981e66481f551bf57b3aa21f435966fe29da2`. GitHub Actions run `33989660405` passed the full validation suite, clean-room Arch package build and inspection, transferred-artifact checksum gate, and prerelease publication. Independent destination verification downloaded the public package, source archive, `PKGBUILD`, `SRCINFO`, and `SHA256SUMS`; every listed checksum passed, package metadata reported `gamedacctl 0.1.3-1`, the extracted CLI reported `gamedacctl 0.1.3`, and the verified all-zone off dry run remained intact. The release notes document the accepted desktop UX, lighting effects, microphone controls, profile-preserving master switch, compatibility boundary, and changelog. The initial-product epic is complete; multi-device selection, distinct-color direction research, and speculative reconnect-readiness discovery remain explicitly deferred.
+
 ## [2026-09-05] release | Prepare v0.1.3
 
 Raised the package version to `0.1.3` after the final desktop UX and corrected-icon commit passed the hosted release dry run. This release adds the adaptive GTK/libadwaita interface, named Solid, Color Flow, and Color Pulse effects, accessible palette and profile management, independent microphone lighting, profile icons, the profile-preserving master lighting state used by both the desktop application and Omarchy panel, reconnect restoration, original packaged icons, and the accepted copy-density and switch-sizing refinements. The immutable tag will be created only after this release commit passes the same hosted validation and Arch bundle build.
