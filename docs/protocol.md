@@ -10,6 +10,7 @@ sources:
   - docs/raw/capture-zones-20260904.usbmon
   - docs/raw/capture-full-effects-mic-20260905.pcapng
   - docs/raw/capture-connected-modes-20260905.pcapng
+  - docs/raw/capture-effect-presets-20260905.pcapng
 ---
 
 # USB lighting protocol
@@ -99,7 +100,23 @@ Animated configurations retain the header but use byte 11 value `00` and place c
 AA ZZ RR GG BB FF 32 C8 C8 00 ZZ 00 <coefficients...>
 ```
 
-The older text-mode sources record only the first 32 data bytes. The 2026-09-05 pcap sources retain every byte and prove that animated reports contain a second parameter block through byte 162; bytes 163–1,023 are zero in the captured configurations.
+The older text-mode sources record only the first 32 data bytes. The 2026-09-05 pcap sources retain every byte and prove that animated reports contain a coefficient-record area followed by a second parameter block through byte 162; bytes 163–1,023 are zero in the captured configurations.
+
+### Coefficient records and color sequences
+
+Animated reports store consecutive eight-byte coefficient records beginning at offset 12. The new preset capture contains examples with 3, 6, and 12 records and establishes this repeated shape:
+
+| Record-relative offsets | Value or interpretation | Confidence |
+| --- | --- | --- |
+| 0–2 | Signed RGB rate coefficients. | inferred mathematically across captured palettes |
+| 3 | Zero padding. | observed |
+| 4–5 | Little-endian transition duration in 20 ms ticks. | observed; unit verified by controlled durations |
+| 6 | One-based ordinal, except the final record uses `00`. | observed |
+| 7 | Zero padding. | observed |
+
+Byte 158 is the observed record count. Bytes 160–161 contain a little-endian aggregate value whose numeric value equals the sum of every record's 20 ms tick count in all analyzed presets. In controlled one- and two-color effects it also matched the GG duration in centiseconds. The new multicolor presets are counterexamples to treating it as a direct copy of the displayed speed: the three-color Breathe case displayed 13.5 seconds but encoded `1,322`, and the six-marker ColorShift displayed 17.56 seconds but encoded `1,000`. Its general UI mapping is therefore unknown.
+
+The stored 12-bit RGB value at offsets 140–145 acts as the initial color in the controlled one- and two-color effects and in the three-color Breathe preset. It is not universally authoritative: the six-marker ColorShift packet retained red even though GG reportedly showed a first marker of `#FF9D00`. Its six coefficient records form a continuous RGB loop, while Multi Color Breathe records alternate toward black and toward the next selected color. This structural distinction is observed in complete payloads, but only two-color ColorShift has enough correlated input evidence for deterministic product generation. Arbitrary longer ColorShift lists remain disabled.
 
 ### Complete Breathe layout
 
@@ -120,7 +137,7 @@ The complete Breathe reports use these fields; unlisted bytes from 28 through 13
 | 140–145 | Three little-endian 12-bit channel values, each `8-bit channel << 4`. | verified against entered colors |
 | 146 | Constant `FF`. | observed |
 | 152 | Connected phase flag: `01` Sweep, `00` Synchronized. | physically verified |
-| 156–159 | Constant `01 00 02 00` in captured animations. | observed |
+| 156–159 | `01 00 NN 00`, where `NN` is the coefficient-record count; `02` for the verified single-color case. | observed |
 | 160–161 | Little-endian duration in centiseconds. | verified |
 | 162 | Engine reverse flag; `01` appeared for reversed Sweep. | exact-generation verified; visible direction remains ambiguous |
 
@@ -146,6 +163,8 @@ Sweep:        byte 152 = 01
 Synchronized: byte 152 = 00
 ```
 
+“Synchronized” is not a combined earcup feature command. GG sends one 1,024-byte feature report for each zone and then one joint `A5 03 0A` apply. Independent per-earcup animation reports also use phase byte `00`; when both sides changed, GG sent the two zone reports followed by the same joint apply. In frame 305 of the full-effects capture, GG updated only zone 1 but still followed it with `A5 03 0A`, apparently retaining zone 0's previously stored report. No captured field identifies a named profile or links the feature reports beyond the phase value and joint apply. The evidence therefore suggests that synchronized startup is coordinated when firmware applies both stored zone states, but separately committing masks `01` and `02` has not been tested for phase alignment.
+
 Reversing Sweep changed only byte 162 from `00` to `01`. Generated normal and reverse packets both matched their Engine captures byte-for-byte and were sent successfully at five seconds. Normal Sweep was observed beginning left-to-right. The reverse run also appeared left-to-right, but every apply briefly illuminated both earcups and a repeating two-zone alternation has no persistent visual direction; the physical meaning of reversal could not be distinguished reliably. The CLI name therefore means “emit Engine's captured reverse flag,” not a promise about visible startup order. With identical color and duration, GG sent no replacement feature report for reversed Synchronized, Reflected, or reversed Reflected—only `AC` and `09` commits. Their distinct physical semantics, if any on this headset, remain unverified.
 
 ### Microphone zones
@@ -164,8 +183,10 @@ Therefore zone 2 is definitively the microphone live/unmuted state and zone 3 th
 - Safe and verified: arbitrary steady color, both zones, with zero-filled remainder.
 - Safe and verified: byte-for-byte replay of captured Breathe, connected Sweep, and Synchronized reports.
 - Safe and verified: generated single-color Breathe, Synchronized, and Sweep reports for whole-second durations from 1 through 30 seconds; reverse emits the exact Engine-observed flag but its visible direction is ambiguous.
+- Safe and verified: generated two-color ColorShift for whole-second durations from 1 through 30 seconds; red-to-blue physically traversed purple rather than black.
+- Safe and physically verified: generated one-to-four-color Multi Color Breathe record chaining; a three-color red/green/blue plan displayed that order and faded to black between colors.
 - Safe to implement from already verified static fields: black/off, independent left/right steady colors, and mic live/muted steady colors.
-- Captured but not safe to synthesize yet: arbitrary ColorShift, Multi Color Breathe, and Reflected behavior.
+- Captured but not safe to synthesize yet: ColorShift beyond two colors, arbitrary GG marker positions, fractional multicolor speed mapping, and Reflected behavior.
 - Out of scope without new evidence: firmware operations and unknown opcodes.
 
 The native `gamedacctl` protocol layer encodes this boundary as typed zones and Breathe modes, bounded duration values, exact-size reports, strict color parsing, computed zone masks, and rejection of unsupported reverse/mode combinations or captured reports with unexpected length, prefix, repeated zone, zone range, or mode marker. Its dry-run path performs no HID discovery or writes. Physical acceptance verified the Rust transport with independent steady earcup colors, both microphone states, every off target, exact Synchronized replay, generated Synchronized and Sweep, and restored static rollback while GameDAC audio remained functional.

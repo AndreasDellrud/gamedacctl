@@ -20,11 +20,11 @@ struct Editor {
     right: gtk::Entry,
     microphone_live: gtk::Entry,
     microphone_muted: gtk::Entry,
-    breathe_color: gtk::Entry,
+    effect_colors: gtk::Entry,
     seconds: gtk::SpinButton,
     reverse: gtk::Switch,
     static_group: adw::PreferencesGroup,
-    breathe_group: adw::PreferencesGroup,
+    animation_group: adw::PreferencesGroup,
 }
 
 fn main() -> glib::ExitCode {
@@ -77,7 +77,7 @@ fn build_ui(application: &adw::Application) {
     style_group.add(&preference_row("Style", None, &editor.style));
     page.add(&style_group);
     page.add(&editor.static_group);
-    page.add(&editor.breathe_group);
+    page.add(&editor.animation_group);
 
     let reconnect = gtk::Switch::new();
     reconnect.set_active(store.borrow().apply_on_reconnect);
@@ -230,7 +230,7 @@ fn build_editor() -> Editor {
     let profile_name = entry("Everyday");
     let profile_icon = entry("");
     profile_icon.set_max_length(8);
-    let style = gtk::DropDown::from_strings(&["Static colors", "Breathe"]);
+    let style = gtk::DropDown::from_strings(&["Steady", "ColorShift", "Multi Color Breathe"]);
     let relationship = gtk::DropDown::from_strings(&["Synchronized", "Sweep"]);
 
     let left = entry("FF3700");
@@ -246,26 +246,28 @@ fn build_editor() -> Editor {
     static_group.add(&preference_row("Microphone live", None, &microphone_live));
     static_group.add(&preference_row("Microphone muted", None, &microphone_muted));
 
-    let breathe_color = entry("7A21E6");
+    let effect_colors = entry("FF0000, 0000FF");
     let seconds = gtk::SpinButton::with_range(1.0, 30.0, 1.0);
     seconds.set_value(10.0);
     let reverse = gtk::Switch::new();
-    let breathe_group = adw::PreferencesGroup::builder()
-        .title("Breathe")
-        .description("A verified single-color effect across both connected earcups.")
+    let animation_group = adw::PreferencesGroup::builder()
+        .title("Animated colors")
+        .description(
+            "Comma-separated colors. ColorShift currently accepts exactly 2; Multi Color Breathe accepts 1–4.",
+        )
         .build();
-    breathe_group.add(&preference_row("Color", None, &breathe_color));
-    breathe_group.add(&preference_row(
+    animation_group.add(&preference_row("Colors", None, &effect_colors));
+    animation_group.add(&preference_row(
         "Duration",
         Some("Whole seconds from 1 through 30."),
         &seconds,
     ));
-    breathe_group.add(&preference_row(
+    animation_group.add(&preference_row(
         "Connected behavior",
-        Some("Synchronized pulses together; Sweep alternates earcups."),
+        Some("Synchronized supports 1–4 colors; Sweep is verified only with one color."),
         &relationship,
     ));
-    breathe_group.add(&preference_row(
+    animation_group.add(&preference_row(
         "Engine reverse flag",
         Some("Captured from GG; visible direction is still under investigation."),
         &reverse,
@@ -280,11 +282,11 @@ fn build_editor() -> Editor {
         right,
         microphone_live,
         microphone_muted,
-        breathe_color,
+        effect_colors,
         seconds,
         reverse,
         static_group,
-        breathe_group,
+        animation_group,
     }
 }
 
@@ -307,13 +309,15 @@ fn preference_row(
 }
 
 fn update_effect_visibility(editor: &Editor) {
-    let is_static = editor.style.selected() == 0;
-    editor.static_group.set_visible(is_static);
-    editor.breathe_group.set_visible(!is_static);
+    let is_steady = editor.style.selected() == 0;
+    let is_multi_color_breathe = editor.style.selected() == 2;
+    editor.static_group.set_visible(is_steady);
+    editor.animation_group.set_visible(!is_steady);
+    editor.relationship.set_sensitive(is_multi_color_breathe);
     editor
         .reverse
-        .set_sensitive(editor.relationship.selected() == 1);
-    if editor.relationship.selected() != 1 {
+        .set_sensitive(is_multi_color_breathe && editor.relationship.selected() == 1);
+    if !is_multi_color_breathe || editor.relationship.selected() != 1 {
         editor.reverse.set_active(false);
     }
 }
@@ -331,8 +335,12 @@ fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
             microphone_live: parse_color("Microphone live", &editor.microphone_live)?,
             microphone_muted: parse_color("Microphone muted", &editor.microphone_muted)?,
         },
-        1 => ProfileLighting::Breathe {
-            color: parse_color("Effect", &editor.breathe_color)?,
+        1 => ProfileLighting::ColorShift {
+            colors: parse_colors(&editor.effect_colors)?,
+            seconds: editor.seconds.value_as_int() as u16,
+        },
+        2 => ProfileLighting::MultiColorBreathe {
+            colors: parse_colors(&editor.effect_colors)?,
             seconds: editor.seconds.value_as_int() as u16,
             mode: if editor.relationship.selected() == 0 {
                 ProfileBreatheMode::Synchronized
@@ -356,12 +364,21 @@ fn parse_color(label: &str, entry: &gtk::Entry) -> Result<Color, String> {
     Color::from_str(entry.text().as_str()).map_err(|error| format!("{label}: {error}"))
 }
 
+fn parse_colors(entry: &gtk::Entry) -> Result<Vec<Color>, String> {
+    entry
+        .text()
+        .split(',')
+        .map(str::trim)
+        .map(|value| Color::from_str(value).map_err(|error| format!("Colors: {error}")))
+        .collect()
+}
+
 fn populate_editor(editor: &Editor, profile: &Profile) {
     editor.profile_name.set_text(&profile.name);
     editor
         .profile_icon
         .set_text(profile.icon.as_deref().unwrap_or(""));
-    match profile.lighting {
+    match &profile.lighting {
         ProfileLighting::Static {
             left,
             right,
@@ -384,17 +401,47 @@ fn populate_editor(editor: &Editor, profile: &Profile) {
             mode,
             reverse,
         } => {
-            editor.style.set_selected(1);
+            editor.style.set_selected(2);
             editor.relationship.set_selected(match mode {
                 ProfileBreatheMode::Synchronized => 0,
                 ProfileBreatheMode::Sweep => 1,
             });
-            editor.breathe_color.set_text(&color.to_string());
-            editor.seconds.set_value(f64::from(seconds));
-            editor.reverse.set_active(reverse);
+            editor.effect_colors.set_text(&color.to_string());
+            editor.seconds.set_value(f64::from(*seconds));
+            editor.reverse.set_active(*reverse);
+        }
+        ProfileLighting::ColorShift { colors, seconds } => {
+            editor.style.set_selected(1);
+            editor.effect_colors.set_text(&format_colors(colors));
+            editor.seconds.set_value(f64::from(*seconds));
+            editor.relationship.set_selected(0);
+            editor.reverse.set_active(false);
+        }
+        ProfileLighting::MultiColorBreathe {
+            colors,
+            seconds,
+            mode,
+            reverse,
+        } => {
+            editor.style.set_selected(2);
+            editor.effect_colors.set_text(&format_colors(colors));
+            editor.relationship.set_selected(match mode {
+                ProfileBreatheMode::Synchronized => 0,
+                ProfileBreatheMode::Sweep => 1,
+            });
+            editor.seconds.set_value(f64::from(*seconds));
+            editor.reverse.set_active(*reverse);
         }
     }
     update_effect_visibility(editor);
+}
+
+fn format_colors(colors: &[Color]) -> String {
+    colors
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn refresh_profile_picker(store: &ProfileStore, names: &gtk::StringList, picker: &gtk::DropDown) {

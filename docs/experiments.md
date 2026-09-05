@@ -8,6 +8,7 @@ sources:
   - docs/raw/capture-zones-20260904.usbmon
   - docs/raw/capture-full-effects-mic-20260905.pcapng
   - docs/raw/capture-connected-modes-20260905.pcapng
+  - docs/raw/capture-effect-presets-20260905.pcapng
   - scripts/gamedac-rgb
 ---
 
@@ -96,3 +97,25 @@ The Rust builder reproduced eight complete Engine reports byte-for-byte: normal 
 The new combination `#7A21E6`/10-second Synchronized was then generated rather than replayed. Both earcups pulsed together at the expected pace, but did not fade completely to black. Five-second normal Sweep visibly began left-to-right and alternated. The matching reversed packet was applied repeatedly; it still appeared to begin left-to-right, but a simultaneous apply flash obscured startup and a repeating two-zone alternation makes direction intrinsically difficult to distinguish. The static orange-left/blue-right and green-live/red-muted configuration was restored afterward.
 
 This accepts generated single-color Breathe and Sweep while retaining two explicit unknowns: the waveform's nonzero brightness floor and the visible meaning of Engine's reverse flag. Reflected, ColorShift, and multicolor synthesis remain disabled.
+
+## Effect-preset sequence capture
+
+Source: `raw/capture-effect-presets-20260905.pcapng`.
+
+A 155.6-second, 52-packet full-snap-length capture was filtered immediately to GameDAC address 69 and USB identity `1038:1280`; the temporary whole-bus source was then deleted. The intended action order was not followed literally, so distinctive microphone Steady markers and packet structure, rather than chronology alone, delimit the results:
+
+- Frame 7: microphone-live Steady `#010203` start marker. Applying it also re-emitted retained earcup animations: frame 9 contains 12 paired rainbow records on zone 0, and frame 11 contains three continuous transition records on zone 1.
+- Frame 21: six microphone-live records alternate toward black and toward the next color, structurally identifying a three-color Multi Color Breathe preset. GG showed markers at 0% `#FF0000`, 33% `#FF7300`, and 66% `#FF9D00`, with a displayed speed of 13.5 seconds; the packet's aggregate field is `1,322`.
+- Frame 29: microphone-live Steady `#040506` separator.
+- Frame 37: six continuous microphone-live transitions form a color loop, structurally identifying a ColorShift preset. GG showed a speed of 17.56 seconds and six markers at 0%, 17%, 34%, 51%, 68%, and 85%, beginning at `#FF9D00` and ending at `#FF00FF`; the four intermediate colors were not recorded. The packet retained red at offsets 140–145 and encoded aggregate value `1,000`, so arbitrary multi-marker color and speed mapping is not established.
+- Frame 45: microphone-live Steady `#070809` end marker.
+
+The six-color retained rainbow in frame 9 fades each color to black and reverses palette order relative to the matching retained zone-1 report in the earlier full-effects capture. This strongly identifies those 12-record reports as a rainbow Multi Color Breathe configuration. The user also clarified that GG permits up to four manual color selections for Multi Color Breathe and up to 14 for ColorShift; presets may emit a longer built-in rainbow than the manual Multi Color Breathe selector. Exact replay is still required before the structural effect labels become physically verified. The initial product scope therefore limits ColorShift to its already correlated two-color form rather than claiming 14-color parity.
+
+## Generated named-effect acceptance
+
+After the Windows VM stopped and Linux `usbhid` regained interface 0, a generated five-second two-color ColorShift used bright red and blue. The user observed a continuous transition through purple, distinguishing it from a fade through black. A generated nine-second Multi Color Breathe then used red, green, and blue; the user observed that exact order and confirmed each color breathed down to black before the next appeared. The accepted Steady orange-left/blue-right and green-live/red-muted configuration was restored. PipeWire still exposed GameDAC Game 5.1 as the default sink at 60 percent, plus GameDAC Chat and microphone.
+
+The rebuilt GTK application then saved `Shift Test` as a two-color ColorShift profile and `Breathe Test` as a synchronized three-color Multi Color Breathe profile. The user applied both and switched between them through the saved-profile selector; the fields reloaded correctly. The persisted version-1 JSON and `status --json` output retained the ordered color arrays and reported `color-shift` and `multi-color-breathe` respectively.
+
+After installing the final binaries and synchronizing the enabled Omarchy adapter, the user applied both profiles again from the panel and confirmed that each worked. The transport intentionally retains GG's observed 60 ms spacing between the two zone reports and the joint apply, which can produce a momentary startup mismatch; the continuing effects remained synchronized.

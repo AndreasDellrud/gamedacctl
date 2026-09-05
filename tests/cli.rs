@@ -246,6 +246,90 @@ fn breathe_rejects_unverified_durations_and_invalid_reverse_mode() {
 }
 
 #[test]
+fn color_shift_dry_run_accepts_exactly_two_colors() {
+    let output = gamedacctl()
+        .args([
+            "--dry-run",
+            "color-shift",
+            "--color",
+            "FF0000",
+            "--color",
+            "0000FF",
+            "--seconds",
+            "10",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("feature zone=right length=1024 bytes=AA 01 FF 00 00"));
+    assert!(stdout.contains("F8 00 08 00 F4 01 01 00 08 00 F8 00 F4 01"));
+    assert!(stdout.contains("zone-mask=0x03"));
+}
+
+#[test]
+fn multi_color_breathe_dry_run_accepts_four_colors_and_rejects_five() {
+    let accepted = gamedacctl()
+        .args([
+            "--dry-run",
+            "multi-color-breathe",
+            "--color",
+            "FF0000",
+            "--color",
+            "FFFF00",
+            "--color",
+            "00FF00",
+            "--color",
+            "0000FF",
+            "--seconds",
+            "10",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        accepted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&accepted.stderr)
+    );
+    assert!(
+        String::from_utf8(accepted.stdout)
+            .unwrap()
+            .contains("zone-mask=0x03")
+    );
+
+    let rejected = gamedacctl()
+        .args([
+            "--dry-run",
+            "multi-color-breathe",
+            "--color",
+            "FF0000",
+            "--color",
+            "FFFF00",
+            "--color",
+            "00FF00",
+            "--color",
+            "00FFFF",
+            "--color",
+            "0000FF",
+            "--seconds",
+            "10",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(
+        String::from_utf8(rejected.stderr)
+            .unwrap()
+            .contains("requires between 1 and 4 colors; got 5")
+    );
+}
+
+#[test]
 fn passive_input_observation_rejects_dry_run_without_opening_hid() {
     let output = gamedacctl()
         .args(["--dry-run", "observe-input", "--seconds", "0"])

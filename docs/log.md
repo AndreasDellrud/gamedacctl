@@ -8,6 +8,14 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] verification | Accept named ColorShift and Multi Color Breathe generation
+
+Generated a five-second red/blue two-color ColorShift after exact two-color fixture equality; the user observed a continuous path through purple rather than black. Generated a nine-second red/green/blue Multi Color Breathe; the user observed the requested order and a fade to black between each color. Restored the accepted four-zone Steady configuration. GameDAC Game 5.1 remained the default sink at 60 percent, with Chat and microphone present. The rebuilt GTK application then saved, applied, switched, and correctly reloaded one profile of each new type; persisted JSON and the status API retained their ordered color arrays and effect identities. The enabled Omarchy panel subsequently applied both profiles successfully. Product limits remain two ColorShift colors, one to four synchronized Breathe colors, single-color connected Sweep, and whole-second durations; broader GG marker and fractional-speed parity remains out of scope.
+
+## [2026-09-05] discovery | Distinguish palette effect record structures
+
+Added a full-payload, GameDAC-only preset capture bracketed by three microphone Steady markers. Complete reports show that ColorShift chains continuous color-to-color transitions, while Multi Color Breathe alternates each selected color with black. A retained six-color rainbow contains 12 paired breathe records, and a new six-record shift preset contains continuous transitions. Correlating the reported GG markers and speeds exposed that multicolor stored-color and aggregate-duration fields are not direct copies of the general UI values. Recorded GG's manual limits of four Breathe colors and 14 ColorShift colors, while restricting initial ColorShift generation to the already correlated two-color case.
+
 ## [2026-09-05] verification | Accept profile icons and event-driven panel refresh
 
 Human testing saved a `🎮` profile icon, then pasted a rainbow icon and observed the still-open Omarchy panel update automatically after the profile-store change. This verifies profile persistence, status serialization, event-driven file watching across atomic replacement, and live rendering without a polling loop. The desktop emoji selector did not insert into the GTK field, while ordinary paste worked; that input/focus defect is retained in the dedicated UX backlog rather than the accepted profile-data feature.

@@ -5,6 +5,8 @@ use thiserror::Error;
 
 pub const FEATURE_REPORT_LEN: usize = 1024;
 pub const OUTPUT_REPORT_LEN: usize = 64;
+pub const MAX_COLOR_SHIFT_COLORS: usize = 14;
+pub const MAX_MULTI_COLOR_BREATHE_COLORS: usize = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(u8)]
@@ -45,10 +47,6 @@ impl BreatheDuration {
 
     pub const fn seconds(self) -> u16 {
         self.seconds
-    }
-
-    const fn ticks_20ms(self) -> u16 {
-        self.seconds * 50
     }
 
     const fn centiseconds(self) -> u16 {
@@ -171,6 +169,22 @@ pub enum ProtocolError {
     InvalidBreatheDuration(u16),
     #[error("reverse direction is observed only for connected Sweep mode")]
     ReverseRequiresSweep,
+    #[error("connected Sweep is verified only for a single Breathe color; got {0}")]
+    SweepRequiresSingleColor(usize),
+    #[error("{effect} requires between {min} and {max} colors; got {actual}")]
+    InvalidEffectColorCount {
+        effect: &'static str,
+        min: usize,
+        max: usize,
+        actual: usize,
+    },
+    #[error(
+        "{effect} transition {transition} is too fast for the captured signed-byte coefficient layout; increase the duration"
+    )]
+    TransitionRateOutOfRange {
+        effect: &'static str,
+        transition: usize,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -239,7 +253,84 @@ impl FeatureReport {
         if reverse && mode != BreatheMode::Sweep {
             return Err(ProtocolError::ReverseRequiresSweep);
         }
+        Self::multi_color_breathe(zone, header_color, &[effect_color], duration, mode, reverse)
+    }
 
+    pub fn color_shift(
+        zone: Zone,
+        header_color: Color,
+        colors: &[Color],
+        duration: BreatheDuration,
+    ) -> Result<Self, ProtocolError> {
+        validate_color_count("ColorShift", colors, 2, MAX_COLOR_SHIFT_COLORS)?;
+        let targets = colors[1..]
+            .iter()
+            .copied()
+            .chain(std::iter::once(colors[0]))
+            .collect::<Vec<_>>();
+        Self::animation(
+            zone,
+            header_color,
+            colors[0],
+            &targets,
+            duration,
+            BreatheMode::Synchronized,
+            false,
+            "ColorShift",
+        )
+    }
+
+    pub fn multi_color_breathe(
+        zone: Zone,
+        header_color: Color,
+        colors: &[Color],
+        duration: BreatheDuration,
+        mode: BreatheMode,
+        reverse: bool,
+    ) -> Result<Self, ProtocolError> {
+        if reverse && mode != BreatheMode::Sweep {
+            return Err(ProtocolError::ReverseRequiresSweep);
+        }
+        validate_color_count(
+            "Multi Color Breathe",
+            colors,
+            1,
+            MAX_MULTI_COLOR_BREATHE_COLORS,
+        )?;
+        if mode == BreatheMode::Sweep && colors.len() != 1 {
+            return Err(ProtocolError::SweepRequiresSingleColor(colors.len()));
+        }
+
+        let mut targets = Vec::with_capacity(colors.len() * 2);
+        for color in colors.iter().skip(1) {
+            targets.push(Color::BLACK);
+            targets.push(*color);
+        }
+        targets.push(Color::BLACK);
+        targets.push(colors[0]);
+        Self::animation(
+            zone,
+            header_color,
+            colors[0],
+            &targets,
+            duration,
+            mode,
+            reverse,
+            "Multi Color Breathe",
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn animation(
+        zone: Zone,
+        header_color: Color,
+        initial_color: Color,
+        targets: &[Color],
+        duration: BreatheDuration,
+        mode: BreatheMode,
+        reverse: bool,
+        effect: &'static str,
+    ) -> Result<Self, ProtocolError> {
         let mut bytes = [0; FEATURE_REPORT_LEN];
         let [header_red, header_green, header_blue] = header_color.bytes();
         bytes[..12].copy_from_slice(&[
@@ -257,24 +348,38 @@ impl FeatureReport {
             0x00,
         ]);
 
-        let ticks = duration.ticks_20ms();
-        let rates = effect_color
-            .bytes()
-            .map(|channel| (((channel as u16) << 4) / ticks) as u8);
-        for (offset, rate) in rates.into_iter().enumerate() {
-            bytes[12 + offset] = 0u8.wrapping_sub(rate);
-            bytes[20 + offset] = rate;
+        let ticks = distribute_ticks(duration.centiseconds(), targets.len());
+        let mut from = initial_color;
+        for (index, (target, transition_ticks)) in targets.iter().copied().zip(ticks).enumerate() {
+            let offset = 12 + index * 8;
+            for (channel_offset, (from_channel, to_channel)) in
+                from.bytes().into_iter().zip(target.bytes()).enumerate()
+            {
+                let delta = ((i32::from(to_channel) - i32::from(from_channel)) << 4)
+                    / i32::from(transition_ticks);
+                let rate =
+                    i8::try_from(delta).map_err(|_| ProtocolError::TransitionRateOutOfRange {
+                        effect,
+                        transition: index + 1,
+                    })?;
+                bytes[offset + channel_offset] = rate as u8;
+            }
+            bytes[offset + 4..offset + 6].copy_from_slice(&transition_ticks.to_le_bytes());
+            bytes[offset + 6] = if index + 1 == targets.len() {
+                0
+            } else {
+                (index + 1) as u8
+            };
+            from = target;
         }
-        bytes[16..18].copy_from_slice(&ticks.to_le_bytes());
-        bytes[18] = 0x01;
-        bytes[24..26].copy_from_slice(&ticks.to_le_bytes());
 
-        for (channel, offset) in effect_color.bytes().into_iter().zip([140, 142, 144]) {
+        for (channel, offset) in initial_color.bytes().into_iter().zip([140, 142, 144]) {
             bytes[offset..offset + 2].copy_from_slice(&((channel as u16) << 4).to_le_bytes());
         }
         bytes[146] = 0xFF;
         bytes[152] = mode.phase_flag();
-        bytes[156..160].copy_from_slice(&[0x01, 0x00, 0x02, 0x00]);
+        bytes[156] = 0x01;
+        bytes[158] = targets.len() as u8;
         bytes[160..162].copy_from_slice(&duration.centiseconds().to_le_bytes());
         bytes[162] = u8::from(reverse);
 
@@ -367,6 +472,41 @@ impl LightingPlan {
         Self::captured(features)
     }
 
+    pub fn color_shift(colors: &[Color], duration: BreatheDuration) -> Result<Self, ProtocolError> {
+        validate_color_count("ColorShift", colors, 2, 2)?;
+        let features = [Zone::Right, Zone::Left]
+            .into_iter()
+            .map(|zone| FeatureReport::color_shift(zone, colors[0], colors, duration))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::captured(features)
+    }
+
+    pub fn multi_color_breathe(
+        colors: &[Color],
+        duration: BreatheDuration,
+    ) -> Result<Self, ProtocolError> {
+        validate_color_count(
+            "Multi Color Breathe",
+            colors,
+            1,
+            MAX_MULTI_COLOR_BREATHE_COLORS,
+        )?;
+        let features = [Zone::Right, Zone::Left]
+            .into_iter()
+            .map(|zone| {
+                FeatureReport::multi_color_breathe(
+                    zone,
+                    colors[0],
+                    colors,
+                    duration,
+                    BreatheMode::Synchronized,
+                    false,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::captured(features)
+    }
+
     pub fn features(&self) -> &[FeatureReport] {
         &self.features
     }
@@ -379,6 +519,40 @@ impl LightingPlan {
         self.features
             .iter()
             .fold(0, |mask, report| mask | report.zone().mask())
+    }
+}
+
+fn validate_color_count(
+    effect: &'static str,
+    colors: &[Color],
+    min: usize,
+    max: usize,
+) -> Result<(), ProtocolError> {
+    if !(min..=max).contains(&colors.len()) {
+        return Err(ProtocolError::InvalidEffectColorCount {
+            effect,
+            min,
+            max,
+            actual: colors.len(),
+        });
+    }
+    Ok(())
+}
+
+fn distribute_ticks(total: u16, count: usize) -> Vec<u16> {
+    let count_u16 = count as u16;
+    let average = total.div_ceil(count_u16);
+    let rounded = average.div_ceil(10) * 10;
+    if rounded * (count_u16 - 1) < total {
+        let mut ticks = vec![rounded; count - 1];
+        ticks.push(total - rounded * (count_u16 - 1));
+        ticks
+    } else {
+        let base = total / count_u16;
+        let remainder = total % count_u16;
+        (0..count)
+            .map(|index| base + u16::from((index as u16) < remainder))
+            .collect()
     }
 }
 
@@ -515,6 +689,70 @@ mod tests {
             BreatheDuration::from_seconds(31).unwrap_err(),
             ProtocolError::InvalidBreatheDuration(31)
         );
+    }
+
+    #[test]
+    fn color_sequence_counts_and_transition_shapes_are_bounded() {
+        let duration = BreatheDuration::from_seconds(10).unwrap();
+        let rainbow = [
+            Color::new(0xFF, 0x00, 0x00),
+            Color::new(0xFF, 0xFF, 0x00),
+            Color::new(0x00, 0xFF, 0x00),
+            Color::new(0x00, 0xFF, 0xFF),
+            Color::new(0x00, 0x00, 0xFF),
+            Color::new(0xFF, 0x00, 0xFF),
+        ];
+        let shift = FeatureReport::color_shift(
+            Zone::MicrophoneLive,
+            Color::new(4, 5, 6),
+            &rainbow,
+            duration,
+        )
+        .unwrap();
+        assert_eq!(shift.bytes()[158], 6);
+        assert_eq!(&shift.bytes()[160..162], &[0xE8, 0x03]);
+        assert_eq!(&shift.bytes()[12..20], &[0, 24, 0, 0, 170, 0, 1, 0]);
+        assert_eq!(&shift.bytes()[52..60], &[0, 0, 0xE5, 0, 150, 0, 0, 0]);
+
+        let breathe = FeatureReport::multi_color_breathe(
+            Zone::Left,
+            rainbow[0],
+            &rainbow[..3],
+            duration,
+            BreatheMode::Synchronized,
+            false,
+        )
+        .unwrap();
+        assert_eq!(breathe.bytes()[158], 6);
+        assert_eq!(&breathe.bytes()[140..146], &[0xF0, 0x0F, 0, 0, 0, 0]);
+
+        assert!(matches!(
+            FeatureReport::color_shift(Zone::Left, Color::BLACK, &rainbow[..1], duration),
+            Err(ProtocolError::InvalidEffectColorCount { .. })
+        ));
+        assert_eq!(
+            FeatureReport::multi_color_breathe(
+                Zone::Left,
+                rainbow[0],
+                &rainbow[..2],
+                duration,
+                BreatheMode::Sweep,
+                false,
+            )
+            .unwrap_err(),
+            ProtocolError::SweepRequiresSingleColor(2)
+        );
+        assert!(matches!(
+            FeatureReport::multi_color_breathe(
+                Zone::Left,
+                Color::BLACK,
+                &rainbow[..5],
+                duration,
+                BreatheMode::Synchronized,
+                false,
+            ),
+            Err(ProtocolError::InvalidEffectColorCount { .. })
+        ));
     }
 
     #[test]

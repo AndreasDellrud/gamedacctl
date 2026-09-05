@@ -58,6 +58,20 @@ enum Command {
         #[arg(long)]
         reverse: bool,
     },
+    /// Continuously shift between two verified colors across both earcups.
+    ColorShift {
+        #[arg(long = "color", value_name = "RRGGBB", required = true, action = clap::ArgAction::Append)]
+        colors: Vec<Color>,
+        #[arg(long, value_name = "SECONDS")]
+        seconds: u16,
+    },
+    /// Breathe one to four colors with black between them across both earcups.
+    MultiColorBreathe {
+        #[arg(long = "color", value_name = "RRGGBB", required = true, action = clap::ArgAction::Append)]
+        colors: Vec<Color>,
+        #[arg(long, value_name = "SECONDS")]
+        seconds: u16,
+    },
     /// Passively observe unsolicited HID input reports without sending data.
     ObserveInput {
         /// Total observation time, including disconnects and reconnects.
@@ -205,6 +219,12 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             mode.into(),
             reverse,
         )?,
+        Command::ColorShift { colors, seconds } => {
+            LightingPlan::color_shift(&colors, BreatheDuration::from_seconds(seconds)?)?
+        }
+        Command::MultiColorBreathe { colors, seconds } => {
+            LightingPlan::multi_color_breathe(&colors, BreatheDuration::from_seconds(seconds)?)?
+        }
         Command::ObserveInput { seconds } => {
             if cli.dry_run {
                 return Err("--dry-run is not meaningful for passive input observation".into());
@@ -262,9 +282,11 @@ fn print_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
                 name: profile.name.clone(),
                 icon: profile.icon.clone(),
                 selected: store.last_selected.as_deref() == Some(profile.name.as_str()),
-                effect: match profile.lighting {
+                effect: match &profile.lighting {
                     ProfileLighting::Static { .. } => "static",
                     ProfileLighting::Breathe { .. } => "breathe",
+                    ProfileLighting::ColorShift { .. } => "color-shift",
+                    ProfileLighting::MultiColorBreathe { .. } => "multi-color-breathe",
                 },
             })
             .collect(),

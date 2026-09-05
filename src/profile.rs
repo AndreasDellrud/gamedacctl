@@ -132,17 +132,17 @@ pub struct Profile {
 impl Profile {
     pub fn plan(&self) -> Result<LightingPlan, ProfileError> {
         self.validate()?;
-        match self.lighting {
+        match &self.lighting {
             ProfileLighting::Static {
                 left,
                 right,
                 microphone_live,
                 microphone_muted,
             } => Ok(LightingPlan::steady([
-                (Zone::Left, left),
-                (Zone::Right, right),
-                (Zone::MicrophoneLive, microphone_live),
-                (Zone::MicrophoneMuted, microphone_muted),
+                (Zone::Left, *left),
+                (Zone::Right, *right),
+                (Zone::MicrophoneLive, *microphone_live),
+                (Zone::MicrophoneMuted, *microphone_muted),
             ])?),
             ProfileLighting::Breathe {
                 color,
@@ -150,11 +150,45 @@ impl Profile {
                 mode,
                 reverse,
             } => Ok(LightingPlan::breathe(
-                color,
-                BreatheDuration::from_seconds(seconds)?,
-                mode.into(),
-                reverse,
+                *color,
+                BreatheDuration::from_seconds(*seconds)?,
+                (*mode).into(),
+                *reverse,
             )?),
+            ProfileLighting::ColorShift { colors, seconds } => Ok(LightingPlan::color_shift(
+                colors,
+                BreatheDuration::from_seconds(*seconds)?,
+            )?),
+            ProfileLighting::MultiColorBreathe {
+                colors,
+                seconds,
+                mode,
+                reverse,
+            } => {
+                if *mode == ProfileBreatheMode::Synchronized && !reverse {
+                    Ok(LightingPlan::multi_color_breathe(
+                        colors,
+                        BreatheDuration::from_seconds(*seconds)?,
+                    )?)
+                } else {
+                    let duration = BreatheDuration::from_seconds(*seconds)?;
+                    let header = colors.first().copied().unwrap_or(Color::BLACK);
+                    let features = [Zone::Right, Zone::Left]
+                        .into_iter()
+                        .map(|zone| {
+                            crate::FeatureReport::multi_color_breathe(
+                                zone,
+                                header,
+                                colors,
+                                duration,
+                                (*mode).into(),
+                                *reverse,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(LightingPlan::captured(features)?)
+                }
+            }
         }
     }
 
@@ -178,23 +212,34 @@ impl Profile {
     }
 
     fn plan_fields_only(&self) -> Result<(), ProfileError> {
-        if let ProfileLighting::Breathe {
-            seconds,
-            mode,
-            reverse,
-            ..
-        } = self.lighting
-        {
-            BreatheDuration::from_seconds(seconds)?;
-            if reverse && mode != ProfileBreatheMode::Sweep {
-                return Err(ProfileError::Protocol(ProtocolError::ReverseRequiresSweep));
+        match &self.lighting {
+            ProfileLighting::Breathe {
+                seconds,
+                mode,
+                reverse,
+                ..
             }
+            | ProfileLighting::MultiColorBreathe {
+                seconds,
+                mode,
+                reverse,
+                ..
+            } => {
+                BreatheDuration::from_seconds(*seconds)?;
+                if *reverse && *mode != ProfileBreatheMode::Sweep {
+                    return Err(ProfileError::Protocol(ProtocolError::ReverseRequiresSweep));
+                }
+            }
+            ProfileLighting::ColorShift { seconds, .. } => {
+                BreatheDuration::from_seconds(*seconds)?;
+            }
+            ProfileLighting::Static { .. } => {}
         }
         Ok(())
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "effect", rename_all = "kebab-case")]
 pub enum ProfileLighting {
     Static {
@@ -205,6 +250,16 @@ pub enum ProfileLighting {
     },
     Breathe {
         color: Color,
+        seconds: u16,
+        mode: ProfileBreatheMode,
+        reverse: bool,
+    },
+    ColorShift {
+        colors: Vec<Color>,
+        seconds: u16,
+    },
+    MultiColorBreathe {
+        colors: Vec<Color>,
         seconds: u16,
         mode: ProfileBreatheMode,
         reverse: bool,
@@ -345,6 +400,47 @@ mod tests {
         .plan()
         .unwrap();
         assert_eq!(breathe_plan.zone_mask(), 0x03);
+
+        for lighting in [
+            ProfileLighting::ColorShift {
+                colors: vec![Color::new(0xFF, 0, 0), Color::new(0, 0, 0xFF)],
+                seconds: 10,
+            },
+            ProfileLighting::MultiColorBreathe {
+                colors: vec![Color::new(0xFF, 0, 0), Color::new(0, 0, 0xFF)],
+                seconds: 10,
+                mode: ProfileBreatheMode::Synchronized,
+                reverse: false,
+            },
+        ] {
+            let plan = Profile {
+                name: "Palette".to_owned(),
+                icon: None,
+                lighting,
+            }
+            .plan()
+            .unwrap();
+            assert_eq!(plan.zone_mask(), 0x03);
+        }
+    }
+
+    #[test]
+    fn legacy_single_color_breathe_profile_remains_compatible() {
+        let profile: Profile = serde_json::from_str(
+            r#"{
+                "name": "Legacy",
+                "lighting": {
+                    "effect": "breathe",
+                    "color": "7A21E6",
+                    "seconds": 10,
+                    "mode": "synchronized",
+                    "reverse": false
+                }
+            }"#,
+        )
+        .unwrap();
+        assert!(matches!(profile.lighting, ProfileLighting::Breathe { .. }));
+        assert_eq!(profile.plan().unwrap().zone_mask(), 0x03);
     }
 
     #[test]

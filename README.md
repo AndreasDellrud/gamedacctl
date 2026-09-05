@@ -4,7 +4,7 @@ An independent Linux lighting controller for the original wired SteelSeries Arct
 
 `gamedacctl` is an unofficial community project. It is not affiliated with, endorsed by, or supported by SteelSeries. Product names are used only to describe compatibility.
 
-Current verified hardware result: `gamedacctl` can set independent steady earcup and microphone-state colors, turn selected zones off, generate single-color Breathe and connected Sweep effects, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
+Current verified hardware result: `gamedacctl` can set independent Steady earcup and microphone-state colors, turn selected zones off, generate two-color ColorShift, one-to-four-color Multi Color Breathe, and connected Sweep effects, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
 
 ## Build
 
@@ -21,7 +21,7 @@ Launch the native GTK/libadwaita application during development with:
 mise exec -- cargo run --bin gamedacctl-gui
 ```
 
-The GUI edits verified static and single-color Breathe/Sweep settings, saves versioned profiles with optional emoji or glyph icons under the user's XDG configuration directory, and can optionally restore the last selected saved profile after reconnect. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
+The GUI edits the three GG-style illumination types—Steady, ColorShift, and Multi Color Breathe—plus the captured connected Sweep behavior. It saves versioned profiles with optional emoji or glyph icons under the user's XDG configuration directory and can optionally restore the last selected saved profile after reconnect. Existing single-color `breathe` profiles remain compatible. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
 
 The CLI also exposes a versioned, machine-readable surface for thin desktop
 integrations:
@@ -51,6 +51,12 @@ mise exec -- cargo run -- --dry-run breathe \
 
 mise exec -- cargo run -- --dry-run breathe \
   --color 2468AC --seconds 5 --mode sweep --reverse
+
+mise exec -- cargo run -- --dry-run color-shift \
+  --color FF0000 --color 0000FF --seconds 5
+
+mise exec -- cargo run -- --dry-run multi-color-breathe \
+  --color FF0000 --color 00FF00 --color 0000FF --seconds 9
 ```
 
 After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
@@ -77,7 +83,7 @@ Start with [the system overview](docs/overview.md), then use [the documentation 
 
 ## Safety
 
-Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified steady fields and the byte-for-byte reproduced single-color Breathe layout on known zones. Breathe durations intentionally accept only whole seconds from 1 through 30; multicolor, ColorShift, and Reflected generation remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
+Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified Steady fields and the observed coefficient-record family on known zones. Durations intentionally accept only whole seconds from 1 through 30. ColorShift is limited to the verified two-color form; Multi Color Breathe accepts the manually observed one-to-four-color range. Longer ColorShift palettes, arbitrary GG marker positions, fractional GG speed mapping, and Reflected generation remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
 
 ## Validation
 

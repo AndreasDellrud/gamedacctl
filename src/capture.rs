@@ -208,6 +208,42 @@ mod tests {
     }
 
     #[test]
+    fn generated_color_shift_matches_two_color_fixtures_and_six_record_shape() {
+        let microphone = capture("capture-full-effects-mic-20260905.pcapng");
+        let first = Color::new(0x12, 0x34, 0x56);
+        let second = Color::new(0xA1, 0xB2, 0xC3);
+        let duration = BreatheDuration::from_seconds(15).unwrap();
+        for (frame, colors) in [(361, [first, second]), (377, [second, first])] {
+            let captured = extract_report(&microphone, frame).unwrap();
+            let generated =
+                FeatureReport::color_shift(Zone::MicrophoneLive, first, &colors, duration).unwrap();
+            assert_eq!(generated.bytes(), captured.bytes(), "frame {frame}");
+        }
+
+        // The longer GG palette was not fully recorded. This primary-color loop
+        // reconstructs its packet bytes, but is structural evidence only; the
+        // product boundary remains the correlated two-color case above.
+        let presets = capture("capture-effect-presets-20260905.pcapng");
+        let rainbow = [
+            Color::new(0xFF, 0x00, 0x00),
+            Color::new(0xFF, 0xFF, 0x00),
+            Color::new(0x00, 0xFF, 0x00),
+            Color::new(0x00, 0xFF, 0xFF),
+            Color::new(0x00, 0x00, 0xFF),
+            Color::new(0xFF, 0x00, 0xFF),
+        ];
+        let captured = extract_report(&presets, 37).unwrap();
+        let generated = FeatureReport::color_shift(
+            Zone::MicrophoneLive,
+            Color::new(0x04, 0x05, 0x06),
+            &rainbow,
+            BreatheDuration::from_seconds(10).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(generated.bytes(), captured.bytes(), "frame 37");
+    }
+
+    #[test]
     fn rejects_missing_captures_and_invalid_frames_before_tshark() {
         assert!(matches!(
             extract_plan(Path::new("does-not-exist.pcapng"), &[1]),
