@@ -19,12 +19,23 @@ fn profile_store(config_home: &std::path::Path) {
   "profiles": [
     {
       "name": "Everyday",
+      "icon": "💜",
       "lighting": {
         "effect": "breathe",
         "color": "7A21E6",
         "seconds": 10,
         "mode": "synchronized",
         "reverse": false
+      }
+    },
+    {
+      "name": "Legacy",
+      "lighting": {
+        "effect": "static",
+        "left": "FF3700",
+        "right": "0084FF",
+        "microphone_live": "00FF00",
+        "microphone_muted": "FF0000"
       }
     }
   ]
@@ -53,8 +64,11 @@ fn status_json_reports_profiles_and_a_machine_readable_device_state() {
     assert!(response["device"]["state"].is_string());
     assert_eq!(response["apply_on_reconnect"], true);
     assert_eq!(response["profiles"][0]["name"], "Everyday");
+    assert_eq!(response["profiles"][0]["icon"], "💜");
     assert_eq!(response["profiles"][0]["selected"], true);
     assert_eq!(response["profiles"][0]["effect"], "breathe");
+    assert_eq!(response["profiles"][1]["name"], "Legacy");
+    assert!(response["profiles"][1]["icon"].is_null());
 }
 
 #[test]

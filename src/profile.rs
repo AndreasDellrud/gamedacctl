@@ -124,6 +124,8 @@ impl ProfileStore {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     pub lighting: ProfileLighting,
 }
 
@@ -162,6 +164,14 @@ impl Profile {
         }
         if self.name != self.name.trim() {
             return Err(ProfileError::UntrimmedName(self.name.clone()));
+        }
+        if let Some(icon) = &self.icon {
+            if icon != icon.trim() {
+                return Err(ProfileError::UntrimmedIcon(icon.clone()));
+            }
+            if icon.chars().count() > 8 {
+                return Err(ProfileError::IconTooLong(icon.clone()));
+            }
         }
         self.plan_fields_only()?;
         Ok(())
@@ -237,6 +247,10 @@ pub enum ProfileError {
     EmptyName,
     #[error("profile name must not have surrounding whitespace: {0:?}")]
     UntrimmedName(String),
+    #[error("profile icon must not have surrounding whitespace: {0:?}")]
+    UntrimmedIcon(String),
+    #[error("profile icon must contain at most eight Unicode characters: {0:?}")]
+    IconTooLong(String),
     #[error("profile name is duplicated: {0:?}")]
     DuplicateName(String),
     #[error("last-selected profile does not exist: {0:?}")]
@@ -254,6 +268,7 @@ mod tests {
     fn static_profile(name: &str) -> Profile {
         Profile {
             name: name.to_owned(),
+            icon: None,
             lighting: ProfileLighting::Static {
                 left: Color::new(0xFF, 0x37, 0x00),
                 right: Color::new(0x00, 0x84, 0xFF),
@@ -300,6 +315,7 @@ mod tests {
         assert!(matches!(
             store.upsert(Profile {
                 name: "Invalid".to_owned(),
+                icon: None,
                 lighting: ProfileLighting::Breathe {
                     color: Color::new(1, 2, 3),
                     seconds: 10,
@@ -318,6 +334,7 @@ mod tests {
 
         let breathe_plan = Profile {
             name: "Pulse".to_owned(),
+            icon: Some("💜".to_owned()),
             lighting: ProfileLighting::Breathe {
                 color: Color::new(0x7A, 0x21, 0xE6),
                 seconds: 10,
@@ -328,5 +345,21 @@ mod tests {
         .plan()
         .unwrap();
         assert_eq!(breathe_plan.zone_mask(), 0x03);
+    }
+
+    #[test]
+    fn profile_icons_are_optional_bounded_unicode_strings() {
+        let mut profile = static_profile("Icon");
+        profile.icon = Some("🎧".to_owned());
+        assert!(profile.plan().is_ok());
+
+        profile.icon = Some("  🎧".to_owned());
+        assert!(matches!(
+            profile.plan(),
+            Err(ProfileError::UntrimmedIcon(_))
+        ));
+
+        profile.icon = Some("123456789".to_owned());
+        assert!(matches!(profile.plan(), Err(ProfileError::IconTooLong(_))));
     }
 }

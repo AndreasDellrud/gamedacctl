@@ -13,6 +13,7 @@ const APPLICATION_ID: &str = "io.github.andreasdellrud.gamedacctl";
 #[derive(Clone)]
 struct Editor {
     profile_name: gtk::Entry,
+    profile_icon: gtk::Entry,
     style: gtk::DropDown,
     relationship: gtk::DropDown,
     left: gtk::Entry,
@@ -62,6 +63,11 @@ fn build_ui(application: &adw::Application) {
         .build();
     profile_group.add(&preference_row("Saved profile", None, &profile_picker));
     profile_group.add(&preference_row("Profile name", None, &editor.profile_name));
+    profile_group.add(&preference_row(
+        "Profile icon",
+        Some("Optional emoji or glyph shown by integrations."),
+        &editor.profile_icon,
+    ));
     page.add(&profile_group);
 
     let style_group = adw::PreferencesGroup::builder()
@@ -222,6 +228,8 @@ fn build_device_group(page: &adw::PreferencesPage) -> adw::ActionRow {
 
 fn build_editor() -> Editor {
     let profile_name = entry("Everyday");
+    let profile_icon = entry("");
+    profile_icon.set_max_length(8);
     let style = gtk::DropDown::from_strings(&["Static colors", "Breathe"]);
     let relationship = gtk::DropDown::from_strings(&["Synchronized", "Sweep"]);
 
@@ -265,6 +273,7 @@ fn build_editor() -> Editor {
 
     Editor {
         profile_name,
+        profile_icon,
         style,
         relationship,
         left,
@@ -311,6 +320,10 @@ fn update_effect_visibility(editor: &Editor) {
 
 fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
     let name = editor.profile_name.text().trim().to_owned();
+    let icon = match editor.profile_icon.text().trim() {
+        "" => None,
+        icon => Some(icon.to_owned()),
+    };
     let lighting = match editor.style.selected() {
         0 => ProfileLighting::Static {
             left: parse_color("Left earcup", &editor.left)?,
@@ -330,7 +343,11 @@ fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
         },
         _ => return Err("Unsupported lighting style".to_owned()),
     };
-    let profile = Profile { name, lighting };
+    let profile = Profile {
+        name,
+        icon,
+        lighting,
+    };
     profile.plan().map_err(|error| error.to_string())?;
     Ok(profile)
 }
@@ -341,6 +358,9 @@ fn parse_color(label: &str, entry: &gtk::Entry) -> Result<Color, String> {
 
 fn populate_editor(editor: &Editor, profile: &Profile) {
     editor.profile_name.set_text(&profile.name);
+    editor
+        .profile_icon
+        .set_text(profile.icon.as_deref().unwrap_or(""));
     match profile.lighting {
         ProfileLighting::Static {
             left,

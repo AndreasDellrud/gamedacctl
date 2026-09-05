@@ -76,7 +76,7 @@ The complete target control surface is:
 - Synchronized Breathe and connected Sweep with duration expressed in seconds.
 - Microphone live/unmuted and muted static colors.
 - Supported microphone live effects after their packet builders are verified.
-- Named profiles and an optional apply-on-reconnect policy.
+- Named profiles with optional user-chosen emoji or glyph icons, plus an optional apply-on-reconnect policy.
 - Clear unsupported-device, permission, and disconnected states.
 - An advanced diagnostics view that reports USB identities and errors without exposing raw firmware operations.
 
@@ -112,9 +112,10 @@ Publish a separate thin shell plugin with a bar indicator and profile panel. Val
 
 The implementation candidate now exists as the separate manifest-root
 `omarchy-gamedacctl` project. It invokes the versioned `status --json` query
-only when opened or explicitly refreshed and invokes `profile apply NAME
---json` only on selection; no timer, HID access, packet construction, shell
-command interpolation, or privilege path lives in QML. Its manifest validates
+when opened, explicitly refreshed, or notified that the atomically written
+profile store changed, and invokes `profile apply NAME --json` only on
+selection; no polling loop, HID access, packet construction, shell command
+interpolation, or privilege path lives in QML. Its manifest validates
 under Omarchy 4.0.1. Local add, enable, panel open, source reload, disable,
 removal, and re-add all succeeded. Both a missing controller executable and a
 missing profile were contained as panel errors while `omarchy-shell` remained

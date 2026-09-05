@@ -102,6 +102,7 @@ struct DeviceStatus {
 #[derive(Debug, Serialize)]
 struct ProfileSummary {
     name: String,
+    icon: Option<String>,
     selected: bool,
     effect: &'static str,
 }
@@ -259,6 +260,7 @@ fn print_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .map(|profile| ProfileSummary {
                 name: profile.name.clone(),
+                icon: profile.icon.clone(),
                 selected: store.last_selected.as_deref() == Some(profile.name.as_str()),
                 effect: match profile.lighting {
                     ProfileLighting::Static { .. } => "static",

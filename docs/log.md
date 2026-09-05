@@ -8,6 +8,14 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] verification | Accept profile icons and event-driven panel refresh
+
+Human testing saved a `🎮` profile icon, then pasted a rainbow icon and observed the still-open Omarchy panel update automatically after the profile-store change. This verifies profile persistence, status serialization, event-driven file watching across atomic replacement, and live rendering without a polling loop. The desktop emoji selector did not insert into the GTK field, while ordinary paste worked; that input/focus defect is retained in the dedicated UX backlog rather than the accepted profile-data feature.
+
+## [2026-09-05] implementation | Add optional profile icons
+
+Extended the backwards-compatible profile schema with an optional icon containing at most eight Unicode characters. The GTK editor can save and reload an emoji, symbol, or font glyph; the stable status JSON carries the value; and the Omarchy selector renders it while retaining effect-specific fallbacks for existing profiles. Validation rejects surrounding whitespace and oversized values without changing lighting behavior.
+
 ## [2026-09-05] verification | Accept Omarchy adapter interactions
 
 Human inspection confirmed that the locally enabled GameDAC bar icon and panel interactions work as intended. Together with the prior manifest, lifecycle, contained-failure, shell-responsiveness, and real profile-apply checks, this completes the thin Omarchy adapter implementation acceptance. Publishing its separate repository remains release work.
