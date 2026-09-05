@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=gamedacctl
+GenericName=GameDAC Lighting Controller
+Comment=Control original SteelSeries GameDAC headset lighting
+Exec=gamedacctl-gui
+Icon=audio-headphones
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=GameDAC;headset;lighting;RGB;
+StartupNotify=true
+StartupWMClass=io.github.andreasdellrud.gamedacctl

@@ -1,6 +1,7 @@
 //! Safe packet construction and transport for original GameDAC lighting.
 
 pub mod capture;
+pub mod profile;
 pub mod protocol;
 pub mod transport;
 

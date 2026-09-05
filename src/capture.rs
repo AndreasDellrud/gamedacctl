@@ -83,7 +83,7 @@ fn extract_report(path: &Path, frame: u32) -> Result<FeatureReport, CaptureError
         .chars()
         .filter(|character| !character.is_ascii_whitespace() && *character != ':')
         .collect();
-    if compact.len() % 2 != 0 || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if !compact.len().is_multiple_of(2) || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(CaptureError::InvalidHex { frame });
     }
     let bytes = (0..compact.len())
@@ -110,7 +110,10 @@ mod tests {
     }
 
     fn sha256(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 
     #[test]

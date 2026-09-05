@@ -46,6 +46,7 @@ pub trait Transport {
 pub struct HidTransport {
     _api: HidApi,
     device: HidDevice,
+    path: String,
 }
 
 impl HidTransport {
@@ -59,8 +60,17 @@ impl HidTransport {
                     && device.interface_number() == INTERFACE_NUMBER
             })
             .ok_or(TransportError::NotFound)?;
+        let path = info.path().to_string_lossy().into_owned();
         let device = info.open_device(&api).map_err(TransportError::Open)?;
-        Ok(Self { _api: api, device })
+        Ok(Self {
+            _api: api,
+            device,
+            path,
+        })
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 

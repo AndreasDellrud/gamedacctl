@@ -94,6 +94,19 @@ except subprocess.CalledProcessError as error:
     raise SystemExit(error.returncode)
 print("Packaged udev rule validates.")
 
+try:
+    subprocess.run(
+        ["desktop-file-validate", "packaging/io.github.andreasdellrud.gamedacctl.desktop"],
+        cwd=ROOT,
+        check=True,
+    )
+except FileNotFoundError:
+    print("Validation failed: desktop-file-validate is required", file=sys.stderr)
+    raise SystemExit(1)
+except subprocess.CalledProcessError as error:
+    raise SystemExit(error.returncode)
+print("Desktop launcher validates.")
+
 checks = [
     ["cargo", "fmt", "--check"],
     ["cargo", "clippy", "--all-targets", "--all-features", "--", "-D", "warnings"],

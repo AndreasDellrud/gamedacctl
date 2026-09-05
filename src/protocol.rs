@@ -1,5 +1,6 @@
 use std::{fmt, str::FromStr};
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use thiserror::Error;
 
 pub const FEATURE_REPORT_LEN: usize = 1024;
@@ -125,6 +126,26 @@ impl FromStr for Color {
         let blue = u8::from_str_radix(&value[4..6], 16)
             .map_err(|_| ProtocolError::InvalidColor(value.to_owned()))?;
         Ok(Self::new(red, green, blue))
+    }
+}
+
+impl Serialize for Color {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer)?
+            .parse()
+            .map_err(D::Error::custom)
     }
 }
 

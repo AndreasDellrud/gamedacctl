@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] implementation | Add native desktop profiles and reconnect restore
+
+Added a current-stack Rust GTK4/libadwaita application over the shared protocol and transport library, plus an atomically persisted versioned JSON profile model and desktop launcher. The UI exposes only verified static and single-color Breathe/Sweep settings, separates effect style from connected behavior, reports device/write states without claiming physical readback, and keeps reconnect restore off by default. Live acceptance saved and reloaded a profile across a process restart. The first boolean reconnect poll missed a fast cycle; path-aware detection then wrote too early and only one earcup changed. The accepted implementation tracks hidraw path changes, distinguishes transient udev access from persistent denial, waits four seconds, reopens the HID device, and restored synchronized purple Breathe on both earcups. Audio returned and the GameDAC Game 5.1 sink remained default at 60 percent. A separate Beads task retains the requested full UX/UI pass.
+
 ## [2026-09-05] decision | Accept gamedacctl public identity
 
 Confirmed `gamedacctl` as the repository, Cargo package, binary, and future application name. The live public repository is `AndreasDellrud/gamedacctl`; exact GitHub and crates.io searches found no other matching project or package on this date. Added an explicit unofficial, non-affiliation, non-endorsement, and compatibility-only disclaimer. No artwork is shipped, and future artwork remains subject to the original-design rule.

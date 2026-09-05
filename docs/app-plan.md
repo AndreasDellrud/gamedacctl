@@ -103,6 +103,8 @@ This milestone is complete for single-color Breathe, Synchronized, and Sweep. Ge
 
 Add the profile model and native GUI over the stable core. Acceptance requires no root prompt, correct disconnected/error states, persistence across application restarts, and no change to the system audio profile.
 
+This functional milestone is complete. The current Rust GTK4/libadwaita window edits verified static and single-color Breathe/Sweep settings, saves a versioned profile store atomically under the XDG configuration directory, remembers the last selected profile, and keeps reconnect restoration opt-in. A dedicated follow-up owns the final UX and visual-design pass. Hardware acceptance saved and restored a profile across a full process restart, detected a manually re-enumerated hidraw path, waited through the GameDAC firmware readiness window, restored both earcups, and reported transient device access separately from a persistent permission error. PipeWire retained the GameDAC Game 5.1 default sink at 60 percent and audio returned after reconnect. A separate research task will test whether passive 64-byte HID input can safely replace the conservative four-second readiness delay.
+
 ### Omarchy adapter
 
 Publish a separate thin shell plugin with a bar indicator and profile panel. Validate it with `omarchy plugin validate`, confirm shell reload behavior, and prove that controller failure cannot destabilize `omarchy-shell`.

@@ -15,6 +15,14 @@ mise install
 mise exec -- cargo build
 ```
 
+Launch the native GTK/libadwaita application during development with:
+
+```bash
+mise exec -- cargo run --bin gamedacctl-gui
+```
+
+The GUI edits verified static and single-color Breathe/Sweep settings, saves versioned profiles under the user's XDG configuration directory, and can optionally restore the last selected saved profile after reconnect. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
+
 Dry runs construct and validate complete reports without opening the device:
 
 ```bash
@@ -57,4 +65,4 @@ Only packets observed from SteelSeries GG are replayed. Generated commands are l
 scripts/validate
 ```
 
-This checks documentation, formatting, linting, packet fixtures, CLI validation, and exact hashes for the physically verified captured presets.
+This checks documentation, udev and desktop packaging, formatting, linting, packet fixtures, CLI validation, profile persistence, and exact hashes for the physically verified captured presets.
