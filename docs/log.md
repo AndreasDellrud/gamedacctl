@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Publish and verify v0.1.4
+
+Published the immutable annotated `v0.1.4` tag at commit `604a583d07125871cb499e694b19de91cd4e9044`. GitHub Actions run `33992136679` passed the full validation suite, clean-room Arch package build and inspection, transferred-artifact checksum gate, and prerelease publication. Independent destination verification downloaded exactly the public package, source archive, `PKGBUILD`, `SRCINFO`, and `SHA256SUMS`; every listed checksum passed, package metadata reported `gamedacctl 0.1.4-1`, and the extracted CLI reported `gamedacctl 0.1.4`. Both the displayed `effect` off target and retained hidden `earcups` compatibility alias produced the same dry-run protocol output. The published notes cover the simplified lighting terminology, compatibility alias, install-first onboarding, repository screenshots and links, hardware-report workflow, and supported-hardware boundary. The separate Omarchy adapter validated and was pushed at commit `7fcae1a` with its requirement and install link updated to the published release.
+
 ## [2026-09-05] release | Prepare v0.1.4
 
 Raised the package version to `0.1.4` after the launch-readiness and terminology commit passed hosted validation and clean-room Arch bundle inspection. This release presents the GTK controls as Lighting effect, Left, Right, Together, and Across; the CLI presents `effect` as the default off target while retaining the previous `earcups` spelling as a tested hidden alias. It also adds install-first public onboarding, verified compatibility and scope summaries, application and Omarchy panel screenshots, cross-repository responsibility links, focused GitHub discovery metadata, and a privacy-conscious hardware-report form. The immutable tag will be created only after this release commit passes the same hosted validation and packaging gate.
