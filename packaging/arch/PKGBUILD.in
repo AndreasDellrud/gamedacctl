@@ -1,5 +1,5 @@
 pkgname=gamedacctl
-pkgver=0.1.0
+pkgver=@PKGVER@
 pkgrel=1
 pkgdesc="Linux lighting control for the original SteelSeries GameDAC"
 arch=('x86_64')
@@ -15,25 +15,22 @@ depends=(
 makedepends=('cargo')
 options=('!debug')
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
-sha256sums=('b2a911f3f6f36c399cbbe310b7373c7fd893e47f5a38fa60faf4e42c2eb5ee1e')
+sha256sums=('@SOURCE_SHA256@')
 
 prepare() {
   cd "$pkgname-$pkgver"
-  export RUSTUP_TOOLCHAIN=stable
   cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
 }
 
 build() {
   cd "$pkgname-$pkgver"
   export CARGO_TARGET_DIR=target
-  export RUSTUP_TOOLCHAIN=stable
   cargo build --frozen --release --all-features
 }
 
 check() {
   cd "$pkgname-$pkgver"
   export CARGO_TARGET_DIR=target
-  export RUSTUP_TOOLCHAIN=stable
   cargo test --frozen --release --all-features --lib profile::
   cargo test --frozen --release --all-features --lib protocol::
   cargo test --frozen --release --all-features --test cli

@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: scripts/build-release [--allow-dirty] [--output DIRECTORY]" >&2
+}
+
+allow_dirty=false
+output_directory=
+while (($#)); do
+  case "$1" in
+    --allow-dirty)
+      allow_dirty=true
+      shift
+      ;;
+    --output)
+      if (($# < 2)); then
+        usage
+        exit 2
+      fi
+      output_directory=$2
+      shift 2
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+repository_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repository_root"
+
+for command in cargo jq makepkg pacman tar sha256sum desktop-file-validate udevadm; do
+  if ! command -v "$command" >/dev/null; then
+    echo "build-release: required command is unavailable: $command" >&2
+    exit 1
+  fi
+done
+if ((EUID == 0)); then
+  echo "build-release: makepkg must run as an unprivileged user" >&2
+  exit 1
+fi
+
+package_metadata=$(cargo metadata --locked --no-deps --format-version 1)
+version=$(jq -er '.packages[] | select(.name == "gamedacctl") | .version' <<<"$package_metadata")
+if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "build-release: Cargo version is not release-compatible: $version" >&2
+  exit 1
+fi
+
+if [[ -z $output_directory ]]; then
+  output_directory="target/release-assets/v$version"
+fi
+mkdir -p "$output_directory"
+output_directory=$(realpath "$output_directory")
+if find "$output_directory" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+  echo "build-release: output directory is not empty: $output_directory" >&2
+  exit 1
+fi
+
+package_arguments=(package --locked)
+if [[ $allow_dirty == true ]]; then
+  package_arguments+=(--allow-dirty)
+fi
+cargo "${package_arguments[@]}"
+
+source_archive="$output_directory/gamedacctl-$version.tar.gz"
+cp "target/package/gamedacctl-$version.crate" "$source_archive"
+archive_listing=$(tar -tzf "$source_archive")
+archive_root="gamedacctl-$version"
+for forbidden in \
+  "$archive_root/docs/raw/" \
+  "$archive_root/.agents/" \
+  "$archive_root/.beads/" \
+  "$archive_root/.claude/" \
+  "$archive_root/.codex/" \
+  "$archive_root/AGENTS.md" \
+  "$archive_root/CLAUDE.md" \
+  "$archive_root/scripts/gamedac-rgb"; do
+  if grep -Fq "$forbidden" <<<"$archive_listing"; then
+    echo "build-release: forbidden source path was packaged: $forbidden" >&2
+    exit 1
+  fi
+done
+for required in '/Cargo.lock' '/LICENSE-APACHE' '/LICENSE-MIT' '/src/main.rs'; do
+  if ! grep -Fq "$required" <<<"$archive_listing"; then
+    echo "build-release: required source path is missing: $required" >&2
+    exit 1
+  fi
+done
+
+source_sha256=$(sha256sum "$source_archive" | cut -d ' ' -f 1)
+sed \
+  -e "s/@PKGVER@/$version/g" \
+  -e "s/@SOURCE_SHA256@/$source_sha256/g" \
+  packaging/arch/PKGBUILD.in >"$output_directory/PKGBUILD"
+
+build_directory=$(mktemp -d)
+cleanup() {
+  rm -rf -- "$build_directory"
+}
+trap cleanup EXIT
+cp "$output_directory/PKGBUILD" "$build_directory/PKGBUILD"
+(
+  cd "$build_directory"
+  makepkg --printsrcinfo >"$output_directory/SRCINFO"
+  SRCDEST="$output_directory" \
+    PKGDEST="$output_directory" \
+    PACKAGER="${PACKAGER:-gamedacctl release workflow <noreply@invalid>}" \
+    makepkg --cleanbuild --clean --noconfirm
+)
+
+binary_package="$output_directory/gamedacctl-$version-1-x86_64.pkg.tar.zst"
+if [[ ! -f $binary_package ]]; then
+  echo "build-release: expected package was not created: $binary_package" >&2
+  exit 1
+fi
+
+package_listing=$(pacman -Qlp "$binary_package")
+for required in \
+  'gamedacctl /usr/bin/gamedacctl' \
+  'gamedacctl /usr/bin/gamedacctl-gui' \
+  'gamedacctl /usr/lib/udev/rules.d/70-gamedacctl.rules' \
+  'gamedacctl /usr/share/applications/io.github.andreasdellrud.gamedacctl.desktop' \
+  'gamedacctl /usr/share/licenses/gamedacctl/LICENSE-APACHE' \
+  'gamedacctl /usr/share/licenses/gamedacctl/LICENSE-MIT'; do
+  if ! grep -Fxq "$required" <<<"$package_listing"; then
+    echo "build-release: expected package path is missing: $required" >&2
+    exit 1
+  fi
+done
+if grep -Eq '/(docs/raw|\.beads|\.agents|\.codex|\.claude)/' <<<"$package_listing"; then
+  echo "build-release: internal or raw material leaked into the binary package" >&2
+  exit 1
+fi
+
+package_root="$build_directory/package-root"
+mkdir -p "$package_root"
+tar -xf "$binary_package" -C "$package_root"
+actual_version=$(
+  "$package_root/usr/bin/gamedacctl" --version | awk '{print $2}'
+)
+if [[ $actual_version != "$version" ]]; then
+  echo "build-release: packaged binary version $actual_version does not match $version" >&2
+  exit 1
+fi
+"$package_root/usr/bin/gamedacctl" --dry-run static --left FF3700 --right 0084FF >/dev/null
+desktop-file-validate \
+  "$package_root/usr/share/applications/io.github.andreasdellrud.gamedacctl.desktop"
+udevadm verify "$package_root/usr/lib/udev/rules.d/70-gamedacctl.rules"
+if ldd "$package_root/usr/bin/gamedacctl-gui" | grep -Fq 'not found'; then
+  echo "build-release: packaged GUI has an unresolved shared library" >&2
+  exit 1
+fi
+
+(
+  cd "$output_directory"
+  sha256sum \
+    "gamedacctl-$version.tar.gz" \
+    "gamedacctl-$version-1-x86_64.pkg.tar.zst" \
+    PKGBUILD \
+    SRCINFO >SHA256SUMS
+  sha256sum -c SHA256SUMS
+)
+
+pacman -Qip "$binary_package"
+echo "build-release: verified artifacts are in $output_directory"

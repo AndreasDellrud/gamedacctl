@@ -1,0 +1,166 @@
+name: Build and publish release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v[0-9]*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a prerelease; the selected ref must be a matching version tag
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: gamedacctl-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Validate and build Arch artifacts
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel@sha256:694da1fce635e3a14d90751941b08f02c500e8724682f7a00768e7152251ec34
+    outputs:
+      publish: ${{ steps.metadata.outputs.publish }}
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - name: Install pinned-environment build dependencies
+        run: >-
+          pacman -Syu --noconfirm --needed
+          desktop-file-utils git gtk4 jq libadwaita mise python systemd wireshark-cli
+
+      - name: Check out the release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare unprivileged builder
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Install the repository Rust toolchain
+        run: |
+          runuser -u builder -- env \
+            HOME=/home/builder \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            bash -c 'cd "$GITHUB_WORKSPACE" && mise trust mise.toml && mise install'
+
+      - name: Validate release metadata
+        id: metadata
+        env:
+          PUBLISH_REQUESTED: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+        run: |
+          metadata=$(runuser -u builder -- env \
+            HOME=/home/builder \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            bash -c 'cd "$GITHUB_WORKSPACE" && mise exec -- cargo metadata --locked --no-deps --format-version 1')
+          version=$(jq -er '.packages[] | select(.name == "gamedacctl") | .version' <<<"$metadata")
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Cargo version is not release-compatible: $version" >&2
+            exit 1
+          fi
+          if [[ $PUBLISH_REQUESTED == true ]]; then
+            if [[ $GITHUB_REF_TYPE != tag || $GITHUB_REF_NAME != "v$version" ]]; then
+              echo "Publishing requires tag v$version; got $GITHUB_REF" >&2
+              exit 1
+            fi
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH_REQUESTED" >>"$GITHUB_OUTPUT"
+
+      - name: Run full validation
+        run: |
+          runuser -u builder -- env \
+            HOME=/home/builder \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            bash -c 'cd "$GITHUB_WORKSPACE" && mise exec -- scripts/validate'
+
+      - name: Build and inspect release bundle
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          runuser -u builder -- env \
+            HOME=/home/builder \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            PACKAGER="Andreas Dellrud <andreas.dellrud@gmail.com>" \
+            RELEASE_VERSION="$RELEASE_VERSION" \
+            bash -c 'cd "$GITHUB_WORKSPACE" && mise exec -- scripts/build-release --output "target/release-assets/v$RELEASE_VERSION"'
+
+      - name: Upload verified dry-run bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gamedacctl-release-${{ steps.metadata.outputs.version }}
+          path: target/release-assets/v${{ steps.metadata.outputs.version }}/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    name: Verify and publish prerelease
+    if: needs.build.outputs.publish == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified build bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gamedacctl-release-${{ needs.build.outputs.version }}
+          path: release-assets
+
+      - name: Verify transferred artifact checksums
+        working-directory: release-assets
+        run: sha256sum -c SHA256SUMS
+
+      - name: Create, verify, and publish the prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="v$RELEASE_VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists for $tag; refusing to replace it" >&2
+            exit 1
+          fi
+
+          gh release create "$tag" \
+            release-assets/gamedacctl-$RELEASE_VERSION-1-x86_64.pkg.tar.zst \
+            release-assets/gamedacctl-$RELEASE_VERSION.tar.gz \
+            release-assets/PKGBUILD \
+            release-assets/SRCINFO \
+            release-assets/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --prerelease \
+            --verify-tag \
+            --generate-notes \
+            --title "gamedacctl $RELEASE_VERSION"
+
+          verification_directory=$(mktemp -d)
+          trap 'rm -rf -- "$verification_directory"' EXIT
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$verification_directory"
+          (
+            cd "$verification_directory"
+            sha256sum -c SHA256SUMS
+          )
+          gh release edit "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --prerelease

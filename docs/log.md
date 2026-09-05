@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] implementation | Automate verified release publication
+
+Added a repository-owned release builder and a GitHub Actions pipeline that exercises the same filtered Cargo source, generated checksum-pinned PKGBUILD, frozen Arch build, distributable tests, package inspection, and checksum verification on pull requests and main-branch pushes. Matching version tags pass the verified bundle to a separate least-privilege publish job, which creates a draft, downloads and verifies every asset from GitHub, and only then exposes it as a prerelease. Pinned the official Arch build container by digest and GitHub-maintained actions by full commit SHA; documented routine publication, manual dry runs, failure rollback, unsigned-package verification, and the decision to keep the source-only Omarchy plugin outside this compiled-artifact workflow.
+
 ## [2026-09-05] implementation | Harden XDG profile storage
 
 Preserved the version-1 store at `$XDG_CONFIG_HOME/gamedacctl/profiles.json` while replacing predictable temporary writes and stale whole-store saves with serialized read-modify-write transactions. Writers now use a private persistent advisory lock, reload and validate current disk state, write through a unique same-directory `0600` temporary file, synchronize it, atomically rename it, and synchronize the `0700` application directory. Malformed stores remain unchanged and produce an actionable error. Added concurrent-writer, interrupted-update, corruption, XDG-path, permission, and legacy-profile coverage plus backup, recovery, and uninstall documentation.

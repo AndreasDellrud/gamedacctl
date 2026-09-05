@@ -19,6 +19,7 @@ sources: []
 | [Native application plan](app-plan.md) | Standalone controller architecture, optional Omarchy adapter, milestones, and acceptance gates. | mixed |
 | [Scoped device access](device-access.md) | Narrow udev access, installation, verification, and rollback. | current |
 | [Profile storage and recovery](profile-storage.md) | XDG location, permissions, atomic updates, corruption handling, backup, and uninstall behavior. | current |
+| [Release and Arch package process](release-process.md) | Automated dry runs, tag publication, artifact verification, security boundaries, and rollback. | current |
 | [Legal and publication considerations](legal.md) | Swedish/EU interoperability findings, remaining legal uncertainty, and release safeguards. | mixed |
 
 See [the chronological log](log.md) for investigation history and [the raw source catalog](raw/README.md) for immutable evidence.

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -72,6 +73,26 @@ for expected in ("overview.md", "protocol.md", "experiments.md", "capture-workfl
 log_dates = re.findall(r"^## \[(\d{4}-\d{2}-\d{2})\]", (DOCS / "log.md").read_text(), re.MULTILINE)
 if log_dates != sorted(log_dates, reverse=True):
     ERRORS.append("docs/log.md: entries are not newest first")
+
+release_builder = ROOT / "scripts" / "build-release"
+if not release_builder.is_file() or not os.access(release_builder, os.X_OK):
+    ERRORS.append("scripts/build-release: missing or not executable")
+else:
+    result = subprocess.run(["bash", "-n", release_builder], cwd=ROOT, check=False)
+    if result.returncode:
+        ERRORS.append("scripts/build-release: bash syntax validation failed")
+
+pkgbuild_template = (ROOT / "packaging" / "arch" / "PKGBUILD.in").read_text()
+for placeholder in ("@PKGVER@", "@SOURCE_SHA256@"):
+    if pkgbuild_template.count(placeholder) != 1:
+        ERRORS.append(f"packaging/arch/PKGBUILD.in: expected one {placeholder} placeholder")
+
+release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text()
+if "pull_request_target:" in release_workflow:
+    ERRORS.append("release workflow must not execute pull-request code with pull_request_target")
+for action in re.findall(r"^\s*uses:\s*([^\s#]+)", release_workflow, re.MULTILINE):
+    if "@" not in action or not re.fullmatch(r"[0-9a-f]{40}", action.rsplit("@", 1)[1]):
+        ERRORS.append(f"release workflow action is not pinned by full commit SHA: {action}")
 
 if ERRORS:
     print("Validation failed:", file=sys.stderr)
