@@ -43,7 +43,7 @@ enum Command {
     Static(StaticArgs),
     /// Disable illumination by setting selected zones to verified steady black.
     Off {
-        #[arg(long, value_enum, default_value_t = OffTarget::Earcups)]
+        #[arg(long, value_enum, default_value_t = OffTarget::Effect)]
         target: OffTarget,
     },
     /// Generate a single-color Breathe or connected Sweep effect.
@@ -58,14 +58,14 @@ enum Command {
         #[arg(long)]
         reverse: bool,
     },
-    /// Continuously shift between two verified colors across both earcups.
+    /// Continuously shift between two verified colors on Left and Right.
     ColorShift {
         #[arg(long = "color", value_name = "RRGGBB", required = true, action = clap::ArgAction::Append)]
         colors: Vec<Color>,
         #[arg(long, value_name = "SECONDS")]
         seconds: u16,
     },
-    /// Breathe one to four colors with black between them across both earcups.
+    /// Breathe one to four colors with black between them on Left and Right.
     MultiColorBreathe {
         #[arg(long = "color", value_name = "RRGGBB", required = true, action = clap::ArgAction::Append)]
         colors: Vec<Color>,
@@ -160,7 +160,8 @@ struct StaticArgs {
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum OffTarget {
-    Earcups,
+    #[value(alias = "earcups")]
+    Effect,
     Microphone,
     All,
 }
@@ -224,7 +225,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             .filter_map(|(zone, color)| color.map(|color| (zone, color))),
         )?,
         Command::Off { target } => LightingPlan::steady(match target {
-            OffTarget::Earcups => vec![(Zone::Left, Color::BLACK), (Zone::Right, Color::BLACK)],
+            OffTarget::Effect => vec![(Zone::Left, Color::BLACK), (Zone::Right, Color::BLACK)],
             OffTarget::Microphone => vec![
                 (Zone::MicrophoneLive, Color::BLACK),
                 (Zone::MicrophoneMuted, Color::BLACK),

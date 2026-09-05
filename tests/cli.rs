@@ -207,7 +207,7 @@ fn invalid_color_is_rejected_by_argument_parser() {
 }
 
 #[test]
-fn off_defaults_to_earcups_only() {
+fn off_defaults_to_effect_only() {
     let output = gamedacctl().args(["--dry-run", "off"]).output().unwrap();
 
     assert!(output.status.success());
@@ -219,7 +219,23 @@ fn off_defaults_to_earcups_only() {
 }
 
 #[test]
-fn breathe_dry_run_generates_both_earcups_and_connected_fields() {
+fn off_accepts_legacy_earcups_target_as_an_alias() {
+    let effect = gamedacctl()
+        .args(["--dry-run", "off", "--target", "effect"])
+        .output()
+        .unwrap();
+    let legacy = gamedacctl()
+        .args(["--dry-run", "off", "--target", "earcups"])
+        .output()
+        .unwrap();
+
+    assert!(effect.status.success());
+    assert!(legacy.status.success());
+    assert_eq!(legacy.stdout, effect.stdout);
+}
+
+#[test]
+fn breathe_dry_run_generates_left_right_and_connected_fields() {
     let output = gamedacctl()
         .args([
             "--dry-run",

@@ -374,7 +374,7 @@ fn build_ui(application: &adw::Application) {
         Some("Keeps the selected profile when turned off."),
         &master_lighting,
     ));
-    style_group.add(&preference_row("Earcup effect", None, &editor.style));
+    style_group.add(&preference_row("Lighting effect", None, &editor.style));
     page.add(&style_group);
     page.add(&editor.static_group);
     page.add(&editor.animation_group);
@@ -685,10 +685,10 @@ fn show_help(window: &adw::ApplicationWindow) {
         Some("How to use GameDAC Lighting"),
         Some(
             "1. Choose a saved profile or select New.\n\
-             2. Pick an earcup effect and its colors.\n\
+             2. Pick a lighting effect and its colors.\n\
              3. Set the live and muted microphone colors.\n\
              4. Save keeps the profile; Apply sends it now.\n\n\
-             Solid sets each earcup independently. Color Flow transitions continuously between two colors. Color Pulse fades one to four colors through black. Together animates both earcups in sync; Across earcups alternates and supports one color.\n\n\
+             Solid sets Left and Right independently. Color Flow transitions continuously between two colors. Color Pulse fades one to four colors through black. Together animates Left and Right in sync; Across alternates them and supports one color.\n\n\
              The Lighting enabled switch turns every zone off and restores the selected profile when turned back on.",
         ),
     );
@@ -759,17 +759,17 @@ fn build_editor() -> Editor {
     ]);
     let profile_icon_widget = profile_icon_input(&profile_icon);
     let style = gtk::DropDown::from_strings(&["Solid", "Color Flow", "Color Pulse"]);
-    let relationship = gtk::DropDown::from_strings(&["Together", "Across earcups"]);
+    let relationship = gtk::DropDown::from_strings(&["Together", "Across"]);
 
-    let left = ColorInput::new("Left earcup", "#FF3700");
-    let right = ColorInput::new("Right earcup", "#0084FF");
+    let left = ColorInput::new("Left", "#FF3700");
+    let right = ColorInput::new("Right", "#0084FF");
     let microphone_live = ColorInput::new("Microphone live", "#00FF00");
     let microphone_muted = ColorInput::new("Microphone muted", "#FF0000");
     let static_group = adw::PreferencesGroup::builder()
-        .title("Earcup colors")
+        .title("Effect colors")
         .build();
-    static_group.add(&preference_row("Left earcup", None, &left.widget));
-    static_group.add(&preference_row("Right earcup", None, &right.widget));
+    static_group.add(&preference_row("Left", None, &left.widget));
+    static_group.add(&preference_row("Right", None, &right.widget));
     let microphone_group = adw::PreferencesGroup::builder()
         .title("Microphone colors")
         .build();
@@ -799,8 +799,8 @@ fn build_editor() -> Editor {
     ));
     animation_group.add(&preference_row("Duration", Some("1–30 seconds."), &seconds));
     animation_group.add(&preference_row(
-        "Earcup timing",
-        Some("Together or alternating between earcups."),
+        "Timing",
+        Some("Together or alternating."),
         &relationship,
     ));
     animation_group.add(&preference_row(
@@ -927,8 +927,8 @@ fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
     };
     let lighting = match editor.style.selected() {
         0 => ProfileLighting::Static {
-            left: editor.left.parse("Left earcup")?,
-            right: editor.right.parse("Right earcup")?,
+            left: editor.left.parse("Left")?,
+            right: editor.right.parse("Right")?,
             microphone_live: editor.microphone_live.parse("Microphone live")?,
             microphone_muted: editor.microphone_muted.parse("Microphone muted")?,
         },

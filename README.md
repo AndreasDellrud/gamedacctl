@@ -4,11 +4,44 @@ An independent Linux lighting controller for the original wired SteelSeries Arct
 
 `gamedacctl` is an unofficial community project. It is not affiliated with, endorsed by, or supported by SteelSeries. Product names are used only to describe compatibility.
 
-Current verified hardware result: `gamedacctl` can set independent Steady earcup and microphone-state colors, turn selected zones off, generate two-color ColorShift, one-to-four-color Multi Color Breathe, and connected Sweep effects, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
+<img src="docs/images/gamedacctl-window.png" alt="GameDAC Lighting showing an Everyday Color Flow profile with microphone colors" width="600">
+
+`gamedacctl` can set independent Solid Left, Right, and microphone-state colors, turn lighting off without replacing the selected profile, generate two-color Color Flow, one-to-four-color Color Pulse, and the connected Across effect, and optionally restore the saved state after reconnect. It controls GameDAC USB device `1038:1280`; audio remains on the separate `1038:1282` interface.
+
+## Install on Arch Linux
+
+Download `gamedacctl-0.1.3-1-x86_64.pkg.tar.zst` from the [v0.1.3 release](https://github.com/AndreasDellrud/gamedacctl/releases/tag/v0.1.3), then install the locally downloaded package:
+
+```bash
+sudo pacman -U ./gamedacctl-0.1.3-1-x86_64.pkg.tar.zst
+```
+
+Reconnect the GameDAC once so the packaged, interface-scoped udev rule takes effect, then launch **GameDAC Lighting** from the application menu or run `gamedacctl-gui`. Package installation does not change PipeWire or WirePlumber configuration. The release also includes `SHA256SUMS`, a checksum-pinned source archive, `PKGBUILD`, and `SRCINFO` for independent verification or rebuilding.
+
+## Compatibility at a glance
+
+| Hardware or capability | Status |
+| --- | --- |
+| Original GameDAC `1038:1280` with original wired Arctis Pro | Physically verified |
+| GameDAC audio device `1038:1282` | Preserved, not controlled |
+| Arch Linux with Omarchy | Physically verified |
+| Other Linux distributions with GTK 4, libadwaita, hidraw, and udev | Expected, not yet verified |
+| GameDAC Gen 2, Arctis Nova, wireless base stations, and other USB identities | Unsupported and rejected |
+| Sonar, EQ, proprietary DTS/Headphone:X, and firmware updates | Out of scope |
 
 Physical support is currently limited to the original GameDAC with the original wired Arctis Pro. GameDAC Gen 2, Arctis Nova products, wireless base stations, other SteelSeries USB identities, and multiple simultaneously connected GameDAC units are not supported. See the [compatibility matrix](docs/compatibility.md) for the tested firmware and precise feature boundaries.
 
-## Build
+## Omarchy integration
+
+The optional [`omarchy-gamedacctl`](https://github.com/AndreasDellrud/omarchy-gamedacctl) bar plugin shows device status, applies saved profiles, opens the full controller, and shares the profile-preserving master lighting switch. USB access and packet generation remain entirely in `gamedacctl`.
+
+After installing this package, add the plugin with:
+
+```bash
+omarchy plugin add https://github.com/AndreasDellrud/omarchy-gamedacctl.git --enable
+```
+
+## Build from source
 
 The project pins its Rust toolchain through [mise](https://mise.jdx.dev/):
 
@@ -23,9 +56,9 @@ Launch the native GTK/libadwaita application during development with:
 mise exec -- cargo run --bin gamedacctl-gui
 ```
 
-The adaptive GTK/libadwaita GUI presents the verified effects with descriptive names: Solid, Color Flow, and Color Pulse. These map to the protocol's Steady, ColorShift, and Multi Color Breathe forms; the connected Sweep behavior appears as Across earcups. Native color dialogs remain synchronized with exact hex values, animated palettes can be reordered, and independent microphone colors remain visible with every earcup effect. A master switch turns every lighting zone off without replacing or modifying the selected profile, and turning it back on restores that profile. The application saves versioned profiles with optional emoji or glyph icons under `$XDG_CONFIG_HOME/gamedacctl/profiles.json` (normally `~/.config/gamedacctl/profiles.json`) and can optionally restore the last lighting state after reconnect. Existing profiles remain compatible. Reconnect restore is disabled by default. The [profile-storage guide](docs/profile-storage.md) documents permissions, concurrent and atomic updates, backup, recovery, and uninstall behavior. Distribution packages install the desktop launcher and original full-color and symbolic application icons with `gamedacctl-gui`.
+The adaptive GTK/libadwaita GUI presents the verified effects with descriptive names: Solid, Color Flow, and Color Pulse. These map to the protocol's Steady, ColorShift, and Multi Color Breathe forms; the connected Sweep behavior appears as Across. Native color dialogs remain synchronized with exact hex values, animated palettes can be reordered, and independent microphone colors remain visible with every effect. A master switch turns every lighting zone off without replacing or modifying the selected profile, and turning it back on restores that profile. The application saves versioned profiles with optional emoji or glyph icons under `$XDG_CONFIG_HOME/gamedacctl/profiles.json` (normally `~/.config/gamedacctl/profiles.json`) and can optionally restore the last lighting state after reconnect. Existing profiles remain compatible. Reconnect restore is disabled by default. The [profile-storage guide](docs/profile-storage.md) documents permissions, concurrent and atomic updates, backup, recovery, and uninstall behavior. Distribution packages install the desktop launcher and original full-color and symbolic application icons with `gamedacctl-gui`.
 
-Arch Linux users can install the release artifact directly with `pacman -U`; an AUR account is not required. A [GitHub Actions release pipeline](docs/release-process.md) validates every change and creates the checksum-pinned source, recipe, metadata, and package bundle for matching version tags. The recipe template and local build notes live under [`packaging/arch`](packaging/arch/README.md).
+The [GitHub Actions release pipeline](docs/release-process.md) validates every change and creates the checksum-pinned source, recipe, metadata, and package bundle for matching version tags. The recipe template and local build notes live under [`packaging/arch`](packaging/arch/README.md).
 
 The CLI also exposes a versioned, machine-readable surface for thin desktop
 integrations:
@@ -63,7 +96,7 @@ mise exec -- cargo run -- --dry-run multi-color-breathe \
   --color FF0000 --color 00FF00 --color 0000FF --seconds 9
 ```
 
-After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
+After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to `--target effect`, which covers Left and Right; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
 
 An exact complete animation captured from SteelSeries GG can be replayed for research without synthesizing unknown bytes:
 
@@ -84,6 +117,10 @@ mise exec -- cargo run --bin gamedacctl -- observe-input --seconds 60
 ```
 
 Start with [the system overview](docs/overview.md), then use [the documentation index](docs/index.md) for protocol evidence, capture workflow, experiment status, the native application roadmap, and legal/publication considerations.
+
+## Reporting hardware results
+
+Use the [hardware report form](https://github.com/AndreasDellrud/gamedacctl/issues/new?template=hardware-report.yml) for another original GameDAC, a compatibility failure, or a successful test on another Linux distribution. Include the reported USB identity and firmware/device release, but do not attach unfiltered USB captures, device serial numbers, credentials, or proprietary installers.
 
 ## Safety
 

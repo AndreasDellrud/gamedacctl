@@ -1,0 +1,117 @@
+name: Hardware compatibility report
+description: Report a successful test or problem with an original GameDAC on Linux
+title: "[Hardware]: "
+labels:
+  - hardware-report
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing gamedacctl. Current support is limited to the original GameDAC control device `1038:1280` with the original wired Arctis Pro. Unknown USB identities are rejected rather than probed.
+
+        Do not attach unfiltered USB captures, device serial numbers, credentials, or proprietary SteelSeries installers.
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Everything I tested worked
+        - Some features worked
+        - The device was detected but writes failed
+        - The device was not detected
+        - I am reporting a regression
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Headset and GameDAC model
+      description: Use the product names printed on the hardware or packaging.
+      placeholder: Original wired Arctis Pro with original GameDAC
+    validations:
+      required: true
+
+  - type: input
+    id: usb_identity
+    attributes:
+      label: USB identity
+      description: Run `lsusb -d 1038:` and include only the vendor/product IDs and product names. Remove serial numbers if your output includes them.
+      placeholder: "1038:1280 SteelSeries ApS SteelSeries GameDAC"
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: GameDAC firmware or device release
+      description: Enter the firmware shown on the GameDAC, or the `bcdDevice` value from `lsusb -v` if available. Do not include a serial number.
+      placeholder: "Device release 1.40"
+
+  - type: input
+    id: package_version
+    attributes:
+      label: gamedacctl version and installation method
+      placeholder: "0.1.3-1, installed from the GitHub Arch package"
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: Linux distribution, desktop, and kernel
+      placeholder: "Arch Linux with Omarchy; Linux 6.x"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: tested_features
+    attributes:
+      label: Features tested
+      options:
+        - label: Solid Left and Right colors
+        - label: Color Flow
+        - label: Color Pulse
+        - label: Across effect
+        - label: Live and muted microphone colors
+        - label: Master lighting switch and profile restore
+        - label: Reconnect restoration
+        - label: Omarchy panel integration
+
+  - type: textarea
+    id: observations
+    attributes:
+      label: What happened?
+      description: Describe visible lighting behavior, the exact command or GUI action, and any error message.
+      placeholder: Tell us what you expected and what you observed.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audio
+    attributes:
+      label: Audio after testing
+      description: Ordinary lighting writes should not alter the separate GameDAC audio device.
+      options:
+        - Audio continued working
+        - Audio recovered after reconnect
+        - Audio stopped or changed
+        - Audio was not tested
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Additional diagnostics
+      description: Paste relevant `gamedacctl status --json` output or errors. Review it before submission and remove personal paths or identifiers.
+      render: shell
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I reviewed this report and removed device serial numbers, credentials, proprietary installers, and unfiltered USB captures.
+          required: true
