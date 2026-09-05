@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Prepare v0.1.1
+
+Raised the package version to `0.1.1` after the hosted main-branch pipeline independently rebuilt and verified the complete `0.1.0` dry-run bundle. This release carries the hardened XDG profile transactions and the repository-owned, least-privilege GitHub Actions publication pipeline. The immutable `v0.1.1` tag is published only after this release commit passes the same hosted dry run.
+
 ## [2026-09-05] implementation | Automate verified release publication
 
 Added a repository-owned release builder and a GitHub Actions pipeline that exercises the same filtered Cargo source, generated checksum-pinned PKGBUILD, frozen Arch build, distributable tests, package inspection, and checksum verification on pull requests and main-branch pushes. Matching version tags pass the verified bundle to a separate least-privilege publish job, which creates a draft, downloads and verifies every asset from GitHub, and only then exposes it as a prerelease. Pinned the official Arch build container by digest and GitHub-maintained actions by full commit SHA; documented routine publication, manual dry runs, failure rollback, unsigned-package verification, and the decision to keep the source-only Omarchy plugin outside this compiled-artifact workflow.
