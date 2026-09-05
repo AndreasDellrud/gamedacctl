@@ -1,0 +1,54 @@
+pkgname=gamedacctl
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux lighting control for the original SteelSeries GameDAC"
+arch=('x86_64')
+url="https://github.com/AndreasDellrud/gamedacctl"
+license=('MIT OR Apache-2.0')
+depends=(
+  'gcc-libs'
+  'glibc'
+  'gtk4>=1:4.22'
+  'libadwaita>=1:1.9'
+  'systemd-libs'
+)
+makedepends=('cargo')
+options=('!debug')
+source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
+sha256sums=('b2a911f3f6f36c399cbbe310b7373c7fd893e47f5a38fa60faf4e42c2eb5ee1e')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export CARGO_TARGET_DIR=target
+  export RUSTUP_TOOLCHAIN=stable
+  cargo build --frozen --release --all-features
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  export CARGO_TARGET_DIR=target
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --release --all-features --lib profile::
+  cargo test --frozen --release --all-features --lib protocol::
+  cargo test --frozen --release --all-features --test cli
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+
+  install -Dm755 target/release/gamedacctl "$pkgdir/usr/bin/gamedacctl"
+  install -Dm755 target/release/gamedacctl-gui "$pkgdir/usr/bin/gamedacctl-gui"
+  install -Dm644 packaging/io.github.andreasdellrud.gamedacctl.desktop \
+    "$pkgdir/usr/share/applications/io.github.andreasdellrud.gamedacctl.desktop"
+  install -Dm644 packaging/udev/70-gamedacctl.rules \
+    "$pkgdir/usr/lib/udev/rules.d/70-gamedacctl.rules"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
+  install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
+}

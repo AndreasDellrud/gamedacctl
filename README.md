@@ -25,6 +25,8 @@ mise exec -- cargo run --bin gamedacctl-gui
 
 The GUI edits the three GG-style illumination types—Steady, ColorShift, and Multi Color Breathe—plus the captured connected Sweep behavior. It saves versioned profiles with optional emoji or glyph icons under the user's XDG configuration directory and can optionally restore the last selected saved profile after reconnect. Existing single-color `breathe` profiles remain compatible. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
 
+Arch Linux users can install the release artifact directly with `pacman -U`; an AUR account is not required. The checksum-pinned recipe and build notes live under [`packaging/arch`](packaging/arch/README.md).
+
 The CLI also exposes a versioned, machine-readable surface for thin desktop
 integrations:
 

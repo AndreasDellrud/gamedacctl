@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Add a direct Arch release package
+
+Added a checksum-pinned Arch package recipe for the `v0.1.0` source archive so installation does not depend on AUR publication. The package builds both Rust binaries from the locked dependency graph with Cargo frozen, runs the distributable protocol/profile/CLI test subset, and installs the desktop entry, narrowly scoped udev rule, README, and both license texts. Release assets are designed to include the filtered Cargo source archive and the resulting pacman-tracked `x86_64` package.
+
 ## [2026-09-05] release | Select dual MIT or Apache-2.0 licensing
 
 Added the complete MIT and Apache-2.0 license texts and Cargo SPDX metadata after the owner selected the recommended Rust dual-license form. Clarified that the license covers the independently written project and does not convey rights in SteelSeries marks or third-party material; Apache contributor patent terms do not represent a patent license from SteelSeries.
