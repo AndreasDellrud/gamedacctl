@@ -2,6 +2,15 @@
 
 This file provides instructions and context for AI coding agents working on this project.
 
+## Task lifecycle
+
+For work represented by a Beads issue, implement and validate locally, close
+the issue, then commit the implementation and exported Beads closure together
+in the same pull request. The protected pull request determines whether that
+closed state reaches `main`; if validation fails, fix or reopen the issue on
+the same branch. Do not create a follow-up commit or pull request solely to
+close work that was completed by the implementation pull request.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
