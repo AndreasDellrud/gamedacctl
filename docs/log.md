@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Prepare v0.1.3
+
+Raised the package version to `0.1.3` after the final desktop UX and corrected-icon commit passed the hosted release dry run. This release adds the adaptive GTK/libadwaita interface, named Solid, Color Flow, and Color Pulse effects, accessible palette and profile management, independent microphone lighting, profile icons, the profile-preserving master lighting state used by both the desktop application and Omarchy panel, reconnect restoration, original packaged icons, and the accepted copy-density and switch-sizing refinements. The immutable tag will be created only after this release commit passes the same hosted validation and Arch bundle build.
+
 ## [2026-09-05] fix | Remove application-icon base band
 
 Removed the semi-transparent dark path that covered roughly the lower fifth of the full-color SVG icon. The overlay was intended to add base depth but rendered as a distinct rectangular gray band and muted part of the RGB arc. The existing body gradient and inset border retain depth without it. The corrected 512-pixel render passed SVG and project validation and was visually accepted by the user; the symbolic icon was unaffected.
