@@ -2,7 +2,7 @@
 
 An independent Linux lighting controller for the original wired SteelSeries Arctis Pro connected through the original GameDAC, plus the reverse-engineering evidence behind it.
 
-Current verified hardware result: Linux can set arbitrary steady earcup colors and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface. The Rust controller implements those packet boundaries but still awaits its own physical acceptance pass.
+Current verified hardware result: `gamedacctl` can set independent steady earcup and microphone-state colors, turn selected zones off, and replay complete captured animations through GameDAC USB control device `1038:1280`, while audio remains on the separate `1038:1282` interface.
 
 ## Build
 
@@ -23,7 +23,7 @@ mise exec -- cargo run -- --dry-run static \
 mise exec -- cargo run -- --dry-run off
 ```
 
-After device permissions are configured and the Rust path has passed physical acceptance, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
+After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to the two earcups; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
 
 An exact complete animation captured from SteelSeries GG can be replayed for research without synthesizing unknown bytes:
 
@@ -35,7 +35,7 @@ mise exec -- cargo run -- --dry-run replay \
 
 Frames 7 and 11 are the verified 10-second connected Sweep for zones 1 and 0. Frames 31 and 33 are the matching Synchronized configuration. `wireshark-cli` is required for pcap replay.
 
-The original `scripts/gamedac-rgb` Python utility remains the physically verified executable reference while the native controller is brought through hardware acceptance. It currently needs root because the relevant `hidraw` nodes are mode `0600`; the planned narrow udev rule will remove that requirement without granting access to unrelated HID devices.
+The original `scripts/gamedac-rgb` Python utility remains the research reference for comparison with early experiments. The packaged narrow udev rule gives the active desktop user access to only `1038:1280` interface `00`; the other GameDAC control interfaces and the `1038:1282` audio device remain outside its scope.
 
 Start with [the system overview](docs/overview.md), then use [the documentation index](docs/index.md) for protocol evidence, capture workflow, experiment status, the native application roadmap, and legal/publication considerations.
 

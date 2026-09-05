@@ -1,7 +1,7 @@
 ---
 title: Scoped GameDAC device access
 type: operations
-status: target
+status: mixed
 updated: 2026-09-05
 sources:
   - packaging/udev/70-gamedacctl.rules
@@ -40,6 +40,12 @@ done
 ```
 
 The intended node must show `ID_VENDOR_ID=1038`, `ID_MODEL_ID=1280`, `ID_USB_INTERFACE_NUM=00`, and `uaccess` in `CURRENT_TAGS`. Interfaces `01`, `02`, and product `1282` must not gain access from this rule. Then run a dry-run command before one physically observed static-color test and confirm that Linux audio is still on product `1038:1282`.
+
+### Development-machine acceptance
+
+On 2026-09-05, the repository rule was installed at `/etc/udev/rules.d/70-gamedacctl.rules`; its SHA-256 matched the source copy. A scoped udev change event applied it without moving the unreliable connector. Interface `00` gained `uaccess` and an `andreas:rw-` ACL, while interfaces `01`, `02`, and product `1282` remained mode `0600 root:root` without `uaccess`.
+
+Repeated non-root controller invocations opened the device successfully and physically changed every supported static zone, each earcup/microphone/all-zone off target, and an exact captured animation. The default six-channel GameDAC sink remained selected at 60 percent and played an audible spoken test afterward. A true disconnect/reconnect and removal rollback have not yet been performed because they require deliberately moving or cycling the mechanically unreliable connection.
 
 ## Rollback
 
