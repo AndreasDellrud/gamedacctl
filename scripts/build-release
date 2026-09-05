@@ -75,14 +75,16 @@ for forbidden in \
   "$archive_root/.beads/" \
   "$archive_root/.claude/" \
   "$archive_root/.codex/" \
-  "$archive_root/AGENTS.md" \
-  "$archive_root/CLAUDE.md" \
   "$archive_root/scripts/gamedac-rgb"; do
   if grep -Fq "$forbidden" <<<"$archive_listing"; then
     echo "build-release: forbidden source path was packaged: $forbidden" >&2
     exit 1
   fi
 done
+if grep -Eq '/(AGENTS|CLAUDE)\.md$' <<<"$archive_listing"; then
+  echo "build-release: agent instruction file was packaged" >&2
+  exit 1
+fi
 for required in '/Cargo.lock' '/LICENSE-APACHE' '/LICENSE-MIT' '/src/main.rs'; do
   if ! grep -Fq "$required" <<<"$archive_listing"; then
     echo "build-release: required source path is missing: $required" >&2

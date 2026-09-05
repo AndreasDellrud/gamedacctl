@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Prepare corrective v0.1.2
+
+Independent verification of the published `v0.1.1` download found that the filtered Cargo archive still contained the nested `docs/AGENTS.md` instruction file. The release remained checksum-valid and the binary package contained only its intended runtime files, but this violated the documented source-exclusion boundary. Excluded the nested file, generalized the release builder to reject `AGENTS.md` or `CLAUDE.md` at any archive depth, and raised the successor version to `0.1.2` without moving or replacing the immutable `v0.1.1` tag.
+
 ## [2026-09-05] release | Prepare v0.1.1
 
 Raised the package version to `0.1.1` after the hosted main-branch pipeline independently rebuilt and verified the complete `0.1.0` dry-run bundle. This release carries the hardened XDG profile transactions and the repository-owned, least-privilege GitHub Actions publication pipeline. The immutable `v0.1.1` tag is published only after this release commit passes the same hosted dry run.
