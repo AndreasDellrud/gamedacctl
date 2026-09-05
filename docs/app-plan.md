@@ -10,7 +10,6 @@ sources:
   - src/main.rs
   - src/bin/gamedacctl-gui.rs
   - packaging/icons/io.github.andreasdellrud.gamedacctl.svg
-  - docs/omarchy-marketplace-validation-20260905.md
 ---
 
 # Native application plan
@@ -125,13 +124,12 @@ missing profile were contained as panel errors while `omarchy-shell` remained
 responsive. Applying the saved `Everyday` profile through plugin IPC completed
 all controller writes and updated the profile-store timestamp. Human acceptance
 confirmed that the bar icon, panel, status, and profile interaction behave as
-intended. The public repository now includes a marketplace-recognized root
-license, explicit manifest licensing, install and removal instructions, a
-preview, and repository-owned validation. The Omarchy marketplace's exact
-structural validator and deterministic security baseline passed public commit
-`dac989636fa485830e6bce3f4e96f324cdd60f93` with no findings or review
-capabilities. Marketplace submission remains an explicit owner action because
-the submission checklist requires confirmation of code and preview-asset rights.
+intended. The separately maintained
+[`omarchy-gamedacctl`](https://github.com/AndreasDellrud/omarchy-gamedacctl)
+repository passed the marketplace-readiness checks at public commit
+`dac989636fa485830e6bce3f4e96f324cdd60f93`. Its repository owns the
+[detailed validation record](https://github.com/AndreasDellrud/omarchy-gamedacctl/blob/main/docs/marketplace-validation-20260905.md).
+Marketplace submission remains an explicit owner action.
 
 ### Public release
 

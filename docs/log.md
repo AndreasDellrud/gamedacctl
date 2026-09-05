@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-06] correction | Move marketplace evidence to its owning repository
+
+Moved the detailed Omarchy marketplace validation record to the separate `omarchy-gamedacctl` repository, beside the manifest, QML, installer documentation, license, and validator it evaluates. The controller documentation now retains only the adapter's integration status and a cross-repository link. The earlier verification entry remains as chronological project history, but this repository no longer catalogs or claims ownership of the plugin's reproducible validation evidence.
+
 ## [2026-09-06] verification | Pass Omarchy marketplace compliance
 
 Audited the public adapter against the stable Omarchy plugin publishing guide, development guide, Quattro first-party plugin reference, live submission form, and marketplace implementation. The marketplace validator initially rejected the dual-license filenames because it recognizes only a root `LICENSE`, `LICENCE`, or `COPYING` form. Plugin commit `dac989636fa485830e6bce3f4e96f324cdd60f93` adds a recognized root license notice, explicit `MIT OR Apache-2.0` manifest metadata, safe removal instructions, and stronger repository validation for marketplace field limits, supported kinds, documentation, license discovery, entry-point paths, symlinks, and optional local QML linting. The required plugin workflow passed, then the marketplace's exact public-snapshot structural check reported Quattro compatibility and detected the README, license, manifest, and preview. Its deterministic security baseline reported `passed`, no findings, no review capabilities, and a clear publication disposition. The direct `Panel.qml` bar-widget entry point remains valid because the current official Quattro reference documents the same pattern for multiple first-party widgets and the implementation has already passed lifecycle acceptance. Submission itself remains pending explicit owner confirmation of every marketplace checklist statement.
