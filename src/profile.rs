@@ -1,12 +1,14 @@
 use std::{
     collections::HashSet,
-    fs,
+    fs::{self, OpenOptions},
     io::Write,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 use thiserror::Error;
 
 use crate::{BreatheDuration, BreatheMode, Color, LightingPlan, ProtocolError, Zone};
@@ -55,24 +57,63 @@ impl ProfileStore {
         }
     }
 
-    pub fn save(&self) -> Result<(), ProfileError> {
-        self.save_to(&Self::default_path()?)
+    pub fn update(
+        update: impl FnOnce(&mut Self) -> Result<(), ProfileError>,
+    ) -> Result<Self, ProfileError> {
+        Self::update_at(&Self::default_path()?, update)
     }
 
-    pub fn save_to(&self, path: &Path) -> Result<(), ProfileError> {
-        self.validate()?;
+    pub fn update_at(
+        path: &Path,
+        update: impl FnOnce(&mut Self) -> Result<(), ProfileError>,
+    ) -> Result<Self, ProfileError> {
         let parent = path
             .parent()
             .ok_or(ProfileError::ConfigDirectoryUnavailable)?;
         fs::create_dir_all(parent).map_err(ProfileError::CreateDirectory)?;
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o700))
+            .map_err(ProfileError::SetPermissions)?;
 
-        let temporary = path.with_extension("json.tmp");
+        let lock_path = path.with_extension("lock");
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(lock_path)
+            .map_err(ProfileError::Lock)?;
+        lock.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(ProfileError::SetPermissions)?;
+        lock.lock().map_err(ProfileError::Lock)?;
+
+        let mut store = Self::load_from(path)?;
+        update(&mut store)?;
+        store.write_locked(path, parent)?;
+        Ok(store)
+    }
+
+    fn write_locked(&self, path: &Path, parent: &Path) -> Result<(), ProfileError> {
+        self.validate()?;
+
         let bytes = serde_json::to_vec_pretty(self).map_err(ProfileError::Encode)?;
-        let mut file = fs::File::create(&temporary).map_err(ProfileError::Write)?;
-        file.write_all(&bytes).map_err(ProfileError::Write)?;
-        file.write_all(b"\n").map_err(ProfileError::Write)?;
-        file.sync_all().map_err(ProfileError::Write)?;
-        fs::rename(temporary, path).map_err(ProfileError::Write)?;
+        let mut temporary = NamedTempFile::new_in(parent).map_err(ProfileError::Write)?;
+        temporary
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(ProfileError::SetPermissions)?;
+        temporary.write_all(&bytes).map_err(ProfileError::Write)?;
+        temporary.write_all(b"\n").map_err(ProfileError::Write)?;
+        temporary
+            .as_file()
+            .sync_all()
+            .map_err(ProfileError::Write)?;
+        temporary
+            .persist(path)
+            .map_err(|error| ProfileError::Write(error.error))?;
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(ProfileError::SyncDirectory)?;
         Ok(())
     }
 
@@ -81,6 +122,15 @@ impl ProfileStore {
         self.profiles
             .iter()
             .find(|profile| profile.name == selected)
+    }
+
+    pub fn select(&mut self, name: &str) -> Result<(), ProfileError> {
+        if self.profiles.iter().any(|profile| profile.name == name) {
+            self.last_selected = Some(name.to_owned());
+            Ok(())
+        } else {
+            Err(ProfileError::ProfileNotFound(name.to_owned()))
+        }
     }
 
     pub fn upsert(&mut self, profile: Profile) -> Result<(), ProfileError> {
@@ -290,8 +340,14 @@ pub enum ProfileError {
     Read(#[source] std::io::Error),
     #[error("could not create the profile directory: {0}")]
     CreateDirectory(#[source] std::io::Error),
+    #[error("could not set private profile-storage permissions: {0}")]
+    SetPermissions(#[source] std::io::Error),
+    #[error("could not lock the profile store: {0}")]
+    Lock(#[source] std::io::Error),
     #[error("could not write the profile store atomically: {0}")]
     Write(#[source] std::io::Error),
+    #[error("could not synchronize the profile directory: {0}")]
+    SyncDirectory(#[source] std::io::Error),
     #[error("could not decode the profile store: {0}")]
     Decode(#[source] serde_json::Error),
     #[error("could not encode the profile store: {0}")]
@@ -308,6 +364,8 @@ pub enum ProfileError {
     IconTooLong(String),
     #[error("profile name is duplicated: {0:?}")]
     DuplicateName(String),
+    #[error("saved profile was not found: {0:?}")]
+    ProfileNotFound(String),
     #[error("last-selected profile does not exist: {0:?}")]
     MissingSelection(String),
     #[error(transparent)]
@@ -316,6 +374,11 @@ pub enum ProfileError {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        sync::{Arc, Barrier},
+        thread,
+    };
+
     use tempfile::tempdir;
 
     use super::*;
@@ -345,14 +408,138 @@ mod tests {
     fn profile_store_round_trips_atomically() {
         let directory = tempdir().unwrap();
         let path = directory.path().join("nested/profiles.json");
-        let mut store = ProfileStore::default();
-        store.upsert(static_profile("Everyday")).unwrap();
-        store.last_selected = Some("Everyday".to_owned());
-        store.apply_on_reconnect = true;
+        let store = ProfileStore::update_at(&path, |store| {
+            store.upsert(static_profile("Everyday"))?;
+            store.select("Everyday")?;
+            store.apply_on_reconnect = true;
+            Ok(())
+        })
+        .unwrap();
 
-        store.save_to(&path).unwrap();
         assert_eq!(ProfileStore::load_from(&path).unwrap(), store);
-        assert!(!path.with_extension("json.tmp").exists());
+        assert_eq!(
+            fs::metadata(path.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(path.with_extension("lock"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+
+    #[test]
+    fn rejected_and_malformed_updates_leave_the_existing_store_unchanged() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("profiles.json");
+        let original = br#"{"schema_version":1,"last_selected":null,"apply_on_reconnect":false,"profiles":[]}"#;
+        fs::write(&path, original).unwrap();
+
+        let error = ProfileStore::update_at(&path, |_| Err(ProfileError::EmptyName)).unwrap_err();
+        assert!(matches!(error, ProfileError::EmptyName));
+        assert_eq!(fs::read(&path).unwrap(), original);
+
+        let malformed = b"{not valid json\n";
+        fs::write(&path, malformed).unwrap();
+        let error = ProfileStore::update_at(&path, |store| {
+            store.upsert(static_profile("Must not appear"))
+        })
+        .unwrap_err();
+        assert!(matches!(error, ProfileError::Decode(_)));
+        assert_eq!(fs::read(&path).unwrap(), malformed);
+    }
+
+    #[test]
+    fn concurrent_updates_serialize_without_losing_profiles() {
+        let directory = tempdir().unwrap();
+        let path = Arc::new(directory.path().join("profiles.json"));
+        let barrier = Arc::new(Barrier::new(3));
+        let mut workers = Vec::new();
+
+        for name in ["First", "Second"] {
+            let path = path.clone();
+            let barrier = barrier.clone();
+            workers.push(thread::spawn(move || {
+                barrier.wait();
+                ProfileStore::update_at(&path, |store| store.upsert(static_profile(name))).unwrap();
+            }));
+        }
+
+        barrier.wait();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+
+        let store = ProfileStore::load_from(&path).unwrap();
+        assert_eq!(
+            store
+                .profiles
+                .iter()
+                .map(|profile| profile.name.as_str())
+                .collect::<Vec<_>>(),
+            ["First", "Second"]
+        );
+    }
+
+    #[test]
+    fn concurrent_updates_preserve_independent_selection_and_policy_changes() {
+        let directory = tempdir().unwrap();
+        let path = Arc::new(directory.path().join("profiles.json"));
+        ProfileStore::update_at(&path, |store| {
+            store.upsert(static_profile("First"))?;
+            store.upsert(static_profile("Second"))?;
+            store.select("First")
+        })
+        .unwrap();
+
+        let barrier = Arc::new(Barrier::new(3));
+        let selection_path = path.clone();
+        let selection_barrier = barrier.clone();
+        let selection = thread::spawn(move || {
+            selection_barrier.wait();
+            ProfileStore::update_at(&selection_path, |store| store.select("Second")).unwrap();
+        });
+        let policy_path = path.clone();
+        let policy_barrier = barrier.clone();
+        let policy = thread::spawn(move || {
+            policy_barrier.wait();
+            ProfileStore::update_at(&policy_path, |store| {
+                store.apply_on_reconnect = true;
+                Ok(())
+            })
+            .unwrap();
+        });
+
+        barrier.wait();
+        selection.join().unwrap();
+        policy.join().unwrap();
+
+        let store = ProfileStore::load_from(&path).unwrap();
+        assert_eq!(store.last_selected.as_deref(), Some("Second"));
+        assert!(store.apply_on_reconnect);
+        assert_eq!(store.profiles.len(), 2);
+    }
+
+    #[test]
+    fn default_path_uses_the_xdg_configuration_location() {
+        let path = ProfileStore::default_path().unwrap();
+        assert!(path.ends_with("gamedacctl/profiles.json"));
+        if let Some(config_home) = std::env::var_os("XDG_CONFIG_HOME") {
+            assert!(path.starts_with(config_home));
+        } else if let Some(home) = std::env::var_os("HOME") {
+            assert!(path.starts_with(Path::new(&home).join(".config")));
+        }
     }
 
     #[test]

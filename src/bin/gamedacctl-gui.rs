@@ -37,12 +37,14 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(application: &adw::Application) {
-    let store = Rc::new(std::cell::RefCell::new(
-        ProfileStore::load().unwrap_or_else(|error| {
+    let (initial_store, initial_profile_error) = match ProfileStore::load() {
+        Ok(store) => (store, None),
+        Err(error) => {
             eprintln!("gamedacctl-gui: {error}");
-            ProfileStore::default()
-        }),
-    ));
+            (ProfileStore::default(), Some(error))
+        }
+    };
+    let store = Rc::new(std::cell::RefCell::new(initial_store));
 
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new(
@@ -138,15 +140,16 @@ fn build_ui(application: &adw::Application) {
         move |_| match profile_from_editor(&editor) {
             Ok(profile) => {
                 let name = profile.name.clone();
-                let result = (|| {
-                    let mut store = store.borrow_mut();
-                    store.upsert(profile)?;
-                    store.last_selected = Some(name);
-                    store.apply_on_reconnect = reconnect.is_active();
-                    store.save()
-                })();
+                let apply_on_reconnect = reconnect.is_active();
+                let result = ProfileStore::update(|latest| {
+                    latest.upsert(profile)?;
+                    latest.select(&name)?;
+                    latest.apply_on_reconnect = apply_on_reconnect;
+                    Ok(())
+                });
                 match result {
-                    Ok(()) => {
+                    Ok(updated) => {
+                        *store.borrow_mut() = updated;
                         refresh_profile_picker(&store.borrow(), &profile_names, &profile_picker);
                         status.set_subtitle("Profile saved");
                     }
@@ -163,13 +166,15 @@ fn build_ui(application: &adw::Application) {
         let store = store.clone();
         let status = status.clone();
         move |toggle| {
-            let result = {
-                let mut store = store.borrow_mut();
-                store.apply_on_reconnect = toggle.is_active();
-                store.save()
-            };
-            if let Err(error) = result {
-                status.set_subtitle(&format!("Could not save reconnect policy: {error}"));
+            let desired = toggle.is_active();
+            match ProfileStore::update(|latest| {
+                latest.apply_on_reconnect = desired;
+                Ok(())
+            }) {
+                Ok(updated) => *store.borrow_mut() = updated,
+                Err(error) => {
+                    status.set_subtitle(&format!("Could not save reconnect policy: {error}"));
+                }
             }
         }
     });
@@ -193,6 +198,11 @@ fn build_ui(application: &adw::Application) {
             None
         }
     };
+    if let Some(error) = initial_profile_error {
+        status.set_subtitle(&format!(
+            "Profiles unavailable; existing file left unchanged: {error}"
+        ));
+    }
     monitor_reconnect(store.clone(), status.clone(), initial_device);
 
     let toolbar = adw::ToolbarView::new();

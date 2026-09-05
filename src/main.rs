@@ -309,7 +309,7 @@ fn apply_saved_profile(
     json: bool,
     dry_run: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut store = ProfileStore::load()?;
+    let store = ProfileStore::load()?;
     let profile = store
         .profiles
         .iter()
@@ -324,8 +324,7 @@ fn apply_saved_profile(
     }
 
     HidTransport::open()?.execute(&plan)?;
-    store.last_selected = Some(profile.name.clone());
-    store.save()?;
+    ProfileStore::update(|latest| latest.select(&profile.name))?;
 
     if json {
         println!(

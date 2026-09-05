@@ -23,7 +23,7 @@ Launch the native GTK/libadwaita application during development with:
 mise exec -- cargo run --bin gamedacctl-gui
 ```
 
-The GUI edits the three GG-style illumination types—Steady, ColorShift, and Multi Color Breathe—plus the captured connected Sweep behavior. It saves versioned profiles with optional emoji or glyph icons under the user's XDG configuration directory and can optionally restore the last selected saved profile after reconnect. Existing single-color `breathe` profiles remain compatible. Reconnect restore is disabled by default. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
+The GUI edits the three GG-style illumination types—Steady, ColorShift, and Multi Color Breathe—plus the captured connected Sweep behavior. It saves versioned profiles with optional emoji or glyph icons under `$XDG_CONFIG_HOME/gamedacctl/profiles.json` (normally `~/.config/gamedacctl/profiles.json`) and can optionally restore the last selected saved profile after reconnect. Existing single-color `breathe` profiles remain compatible. Reconnect restore is disabled by default. The [profile-storage guide](docs/profile-storage.md) documents permissions, concurrent and atomic updates, backup, recovery, and uninstall behavior. Distribution packages should install `packaging/io.github.andreasdellrud.gamedacctl.desktop` with the `gamedacctl-gui` binary.
 
 Arch Linux users can install the release artifact directly with `pacman -U`; an AUR account is not required. The checksum-pinned recipe and build notes live under [`packaging/arch`](packaging/arch/README.md).
 

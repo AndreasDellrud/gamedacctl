@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] implementation | Harden XDG profile storage
+
+Preserved the version-1 store at `$XDG_CONFIG_HOME/gamedacctl/profiles.json` while replacing predictable temporary writes and stale whole-store saves with serialized read-modify-write transactions. Writers now use a private persistent advisory lock, reload and validate current disk state, write through a unique same-directory `0600` temporary file, synchronize it, atomically rename it, and synchronize the `0700` application directory. Malformed stores remain unchanged and produce an actionable error. Added concurrent-writer, interrupted-update, corruption, XDG-path, permission, and legacy-profile coverage plus backup, recovery, and uninstall documentation.
+
 ## [2026-09-05] release | Add a direct Arch release package
 
 Added a checksum-pinned Arch package recipe for the `v0.1.0` source archive so installation does not depend on AUR publication. The package builds both Rust binaries from the locked dependency graph with Cargo frozen, runs the distributable protocol/profile/CLI test subset, and installs the desktop entry, narrowly scoped udev rule, README, and both license texts. Release assets are designed to include the filtered Cargo source archive and the resulting pacman-tracked `x86_64` package.
