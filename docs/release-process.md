@@ -35,7 +35,9 @@ For a manual dry run, open the workflow in GitHub Actions, choose **Run workflow
 Prepare one release commit on a topic branch that updates the version in `Cargo.toml` and its corresponding `Cargo.lock` entry. Run `scripts/validate`, commit, push the branch, and open a pull request. Merge only after the required **Validate and build Arch artifacts** check passes. After the merged commit's main-branch dry run passes, create and push an annotated tag whose name exactly matches the Cargo version:
 
 ```bash
-git tag -a v0.1.1 -m "gamedacctl 0.1.1"
+git fetch origin main
+release_commit=$(git rev-parse origin/main)
+git tag -a v0.1.1 "$release_commit" -m "gamedacctl 0.1.1"
 git push origin v0.1.1
 ```
 
