@@ -8,6 +8,10 @@ sources: []
 
 # Documentation log
 
+## [2026-09-05] release | Prepare v0.1.4
+
+Raised the package version to `0.1.4` after the launch-readiness and terminology commit passed hosted validation and clean-room Arch bundle inspection. This release presents the GTK controls as Lighting effect, Left, Right, Together, and Across; the CLI presents `effect` as the default off target while retaining the previous `earcups` spelling as a tested hidden alias. It also adds install-first public onboarding, verified compatibility and scope summaries, application and Omarchy panel screenshots, cross-repository responsibility links, focused GitHub discovery metadata, and a privacy-conscious hardware-report form. The immutable tag will be created only after this release commit passes the same hosted validation and packaging gate.
+
 ## [2026-09-05] release | Improve repository launch readiness
 
 Reorganized the public README around the downloadable Arch package, verified compatibility boundary, application screenshot, optional Omarchy integration, and structured hardware reporting before development instructions. Added a privacy-conscious GitHub issue form that asks for the exact USB identity, firmware or device release, system, package version, tested features, physical lighting result, and audio result without requesting unfiltered captures or serial numbers. Cross-linked the controller and adapter repositories with their distinct responsibilities and retained the independent-project disclaimer. Repository descriptions and topics now use the specific original-GameDAC, Linux-lighting, GTK, HID, Arch, and Omarchy discovery terms without suggesting support for GG, proprietary audio processing, firmware updates, or newer SteelSeries hardware. Simplified current user-facing terminology to Lighting effect, Left, Right, Together, and Across; the CLI presents `effect` as the off target while retaining `earcups` as a hidden compatibility alias, and protocol or historical documentation keeps the physical term where it remains precise evidence.

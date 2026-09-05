@@ -10,10 +10,10 @@ An independent Linux lighting controller for the original wired SteelSeries Arct
 
 ## Install on Arch Linux
 
-Download `gamedacctl-0.1.3-1-x86_64.pkg.tar.zst` from the [v0.1.3 release](https://github.com/AndreasDellrud/gamedacctl/releases/tag/v0.1.3), then install the locally downloaded package:
+Download `gamedacctl-0.1.4-1-x86_64.pkg.tar.zst` from the [v0.1.4 release](https://github.com/AndreasDellrud/gamedacctl/releases/tag/v0.1.4), then install the locally downloaded package:
 
 ```bash
-sudo pacman -U ./gamedacctl-0.1.3-1-x86_64.pkg.tar.zst
+sudo pacman -U ./gamedacctl-0.1.4-1-x86_64.pkg.tar.zst
 ```
 
 Reconnect the GameDAC once so the packaged, interface-scoped udev rule takes effect, then launch **GameDAC Lighting** from the application menu or run `gamedacctl-gui`. Package installation does not change PipeWire or WirePlumber configuration. The release also includes `SHA256SUMS`, a checksum-pinned source archive, `PKGBUILD`, and `SRCINFO` for independent verification or rebuilding.
