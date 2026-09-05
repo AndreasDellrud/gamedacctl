@@ -24,6 +24,8 @@ pub enum TransportError {
     Feature(#[source] hidapi::HidError),
     #[error("GameDAC output report failed: {0}")]
     Output(#[source] hidapi::HidError),
+    #[error("GameDAC input report failed: {0}")]
+    Input(#[source] hidapi::HidError),
 }
 
 pub trait Transport {
@@ -71,6 +73,17 @@ impl HidTransport {
 
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    pub fn read_input_timeout(
+        &self,
+        buffer: &mut [u8],
+        timeout: Duration,
+    ) -> Result<usize, TransportError> {
+        let milliseconds = timeout.as_millis().min(i32::MAX as u128) as i32;
+        self.device
+            .read_timeout(buffer, milliseconds)
+            .map_err(TransportError::Input)
     }
 }
 

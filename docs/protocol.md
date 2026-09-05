@@ -37,6 +37,8 @@ The descriptor declares 64-byte input and output reports and a 1,024-byte featur
 
 HIDAPI requires an extra leading zero report-ID byte in the userspace buffer for these unnumbered reports. The kernel removes that API byte before the USB transfer.
 
+The 64-byte interrupt input path is safe to observe passively, but it is not currently a firmware-readiness API. Existing GG captures include reports beginning with `0x10` and `0x20`; a settled native three-second observation received none, and a complete manual reconnect observation received none before removal or after the new control node became accessible. Their triggers and semantics remain unknown. The controller does not issue an unobserved `GET_REPORT` or other polling command.
+
 ## Steady color packet
 
 The first 12 bytes of the 1,024-byte feature payload are verified:

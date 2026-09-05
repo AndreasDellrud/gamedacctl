@@ -138,3 +138,18 @@ fn breathe_rejects_unverified_durations_and_invalid_reverse_mode() {
             .contains("reverse direction is observed only")
     );
 }
+
+#[test]
+fn passive_input_observation_rejects_dry_run_without_opening_hid() {
+    let output = gamedacctl()
+        .args(["--dry-run", "observe-input", "--seconds", "0"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("--dry-run is not meaningful for passive input observation")
+    );
+}

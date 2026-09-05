@@ -405,7 +405,7 @@ fn transport_status(error: &TransportError) -> String {
         TransportError::NotFound => "Disconnected".to_owned(),
         TransportError::Open(_) => "Permission denied; check the scoped udev rule".to_owned(),
         TransportError::Initialization(_) => "Could not initialize HID access".to_owned(),
-        TransportError::Feature(_) | TransportError::Output(_) => {
+        TransportError::Feature(_) | TransportError::Output(_) | TransportError::Input(_) => {
             format!("Write failed: {error}")
         }
     }

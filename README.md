@@ -53,6 +53,12 @@ Frames 7 and 11 are the verified 10-second connected Sweep for zones 1 and 0. Fr
 
 The original `scripts/gamedac-rgb` Python utility remains the research reference for comparison with early experiments. The packaged narrow udev rule gives the active desktop user access to only `1038:1280` interface `00`; the other GameDAC control interfaces and the `1038:1282` audio device remain outside its scope.
 
+For passive reconnect research, `observe-input` prints device accessibility and unsolicited 64-byte HID input reports for a bounded period. It sends no report to the DAC:
+
+```bash
+mise exec -- cargo run --bin gamedacctl -- observe-input --seconds 60
+```
+
 Start with [the system overview](docs/overview.md), then use [the documentation index](docs/index.md) for protocol evidence, capture workflow, experiment status, the native application roadmap, and legal/publication considerations.
 
 ## Safety
