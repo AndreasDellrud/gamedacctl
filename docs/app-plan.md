@@ -124,7 +124,13 @@ missing profile were contained as panel errors while `omarchy-shell` remained
 responsive. Applying the saved `Everyday` profile through plugin IPC completed
 all controller writes and updated the profile-store timestamp. Human acceptance
 confirmed that the bar icon, panel, status, and profile interaction behave as
-intended. Public publication remains part of the release milestone.
+intended. The public repository now includes a marketplace-recognized root
+license, explicit manifest licensing, install and removal instructions, a
+preview, and repository-owned validation. The Omarchy marketplace's exact
+structural validator and deterministic security baseline passed public commit
+`dac989636fa485830e6bce3f4e96f324cdd60f93` with no findings or review
+capabilities. Marketplace submission remains an explicit owner action because
+the submission checklist requires confirmation of code and preview-asset rights.
 
 ### Public release
 
