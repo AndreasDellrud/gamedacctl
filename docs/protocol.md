@@ -2,7 +2,7 @@
 title: USB lighting protocol
 type: architecture
 status: mixed
-updated: 2026-09-05
+updated: 2026-11-09
 sources:
   - src/protocol.rs
   - scripts/gamedac-rgb
@@ -11,13 +11,15 @@ sources:
   - docs/raw/capture-full-effects-mic-20260905.pcapng
   - docs/raw/capture-connected-modes-20260905.pcapng
   - docs/raw/capture-effect-presets-20260905.pcapng
+  - docs/raw/capture-reflected-timing-controlled-20261021.pcapng
+  - src/capture.rs
 ---
 
 # USB lighting protocol
 
 ## Scope and evidence standard
 
-This page covers lighting configuration sent by SteelSeries GG 118.0.0 to original GameDAC control device `1038:1280`. “Observed” means present in a raw USB trace. “Verified” additionally means a Linux replay caused the expected physical change. “Inferred” is a working interpretation that still requires a controlled replay.
+This page covers lighting configuration sent by SteelSeries GG 118.0.0 and the explicitly identified GG 122.0.0 repeat to original GameDAC control device `1038:1280`. “Observed” means present in a raw USB trace. “Verified” additionally means a Linux replay caused the expected physical change. “Inferred” is a working interpretation that still requires a controlled replay. Exact replay of the sampled GG 122 marker/reflection reports now has [native physical acceptance](experiments.md#native-replay-acceptance-of-the-controlled-gg-122-reports); the subsequent [generated-plan acceptance](experiments.md#native-generated-acceptance-of-gg-122-marker-timing) is recorded separately.
 
 ## HID interface
 
@@ -114,9 +116,21 @@ Animated reports store consecutive eight-byte coefficient records beginning at o
 | 6 | One-based ordinal, except the final record uses `00`. | observed |
 | 7 | Zero padding. | observed |
 
-Byte 158 is the observed record count. Bytes 160–161 contain a little-endian aggregate value whose numeric value equals the sum of every record's 20 ms tick count in all analyzed presets. In controlled one- and two-color effects it also matched the GG duration in centiseconds. The new multicolor presets are counterexamples to treating it as a direct copy of the displayed speed: the three-color Breathe case displayed 13.5 seconds but encoded `1,322`, and the six-marker ColorShift displayed 17.56 seconds but encoded `1,000`. Its general UI mapping is therefore unknown.
+Byte 158 is the observed record count. Bytes 160–161 contain a little-endian aggregate value whose numeric value equals the sum of every record's duration count in all analyzed presets. In controlled one- and two-color effects it also matched the GG duration in centiseconds. The older multicolor presets are counterexamples to treating it as a direct copy of the displayed speed: the three-color Breathe case displayed 13.5 seconds but encoded `1,322`, and the six-marker ColorShift displayed 17.56 seconds but encoded `1,000`. The [recovered GG 122 serializer](gg122-device-serializer.md) now explains the Breathe result: integer half-spans 16/16/17 yield 216/216/216/216/229/229 and sum 1322. An independent test reproduces the entire old frame. The six-marker UI/capture mismatch remains unresolved.
 
-The stored 12-bit RGB value at offsets 140–145 acts as the initial color in the controlled one- and two-color effects and in the three-color Breathe preset. It is not universally authoritative: the six-marker ColorShift packet retained red even though GG reportedly showed a first marker of `#FF9D00`. Its six coefficient records form a continuous RGB loop, while Multi Color Breathe records alternate toward black and toward the next selected color. This structural distinction is observed in complete payloads, but only two-color ColorShift has enough correlated input evidence for deterministic product generation. Arbitrary longer ColorShift lists remain disabled.
+The stored 12-bit RGB value at offsets 140–145 acts as the initial color in the controlled one- and two-color effects, the three-color Breathe preset, and the controlled GG 122 three-color ColorShift. It is not universally authoritative: the six-marker ColorShift packet retained red even though GG reportedly showed a first marker of `#FF9D00`. Its six coefficient records form a continuous RGB loop, while Multi Color Breathe records alternate toward black and toward the next selected color. This structural distinction is observed in complete payloads. The legacy CLI/profile path remains exactly two colors with implicit timing. The low-level structural constructor accepts up to 14 colors for fixture analysis; that is not the public plan boundary or a physical-support claim. The additive positioned-marker path supports two or three colors and reproduces the controlled GG 122 reports below. Generated three-color Synchronized, Reflected, and reversed Reflected plans now have owner physical acceptance; other bounded marker layouts remain generalizations of the observed formula.
+
+### Controlled GG 122 marker timing
+
+The [controlled October capture](experiments.md#controlled-gg-122-marker-reflection-and-fractional-timing-capture) holds red/green/blue markers at 0%/25%/70%. Its forward transition spans are 25%/45%/30%. For the observed inputs, the following model reproduces complete reports:
+
+```text
+transition_duration[i] = floor(stored_speed_centiseconds * span_percent[i] / 100)
+channel_rate[i] = trunc_toward_zero(16 * (target_channel - start_channel) / transition_duration[i])
+aggregate = sum(transition_duration)
+```
+
+The 12.00-second baseline produces record durations `[300, 540, 360]` and aggregate `1200`. The isolated 12.34-second change produces `[308, 555, 370]` and aggregate `1233`: rounding is applied independently to each segment, without redistributing the lost unit. The initial color is red, the retained header is `FF3C00`, and the next-record ordinals are `1, 2, 0`. A research-only fixture reconstructs every byte of all eight reports in the controlled capture. Native exact replay of both timing configurations was physically accepted, with synchronized colors and working audio. This establishes the sampled input-to-byte relationship and usable replay; the firmware timing unit, precise physical period, and general marker-layout behavior remain unmeasured.
 
 ### Complete Breathe layout
 
@@ -167,6 +181,16 @@ Synchronized: byte 152 = 00
 
 Reversing Sweep changed only byte 162 from `00` to `01`. Generated normal and reverse packets both matched their Engine captures byte-for-byte and were sent successfully at five seconds. Normal Sweep was observed beginning left-to-right. The reverse run also appeared left-to-right, but every apply briefly illuminated both earcups and a repeating two-zone alternation has no persistent visual direction; the physical meaning of reversal could not be distinguished reliably. The CLI name therefore means “emit Engine's captured reverse flag,” not a promise about visible startup order. With identical color and duration, GG sent no replacement feature report for reversed Synchronized, Reflected, or reversed Reflected—only `AC` and `09` commits. Their distinct physical semantics, if any on this headset, remain unverified.
 
+[Offline GG 122 inspection](gg122-lighting-research.md) found a GameDAC-specific settings transformation for Reflected: it mirrors marker positions and reverses palette order on one earcup, choosing the other earcup when reverse is selected. Unlike Sweep, it leaves the direction fields disabled. This static finding makes an asymmetric multicolor experiment more useful than the old single-color comparison. It does not establish a new HID field, prove GG 118 used the same transformation, or change the known-safe implementation boundary. The shared editor's centisecond speed representation also leaves the recorded multicolor packet/UI timing discrepancies unresolved.
+
+The controlled GG 122 repeat corroborates that transformation in actual USB traffic and owner observations under GG. With red/green/blue at 0%/25%/70%, Reflected applies red/blue/green at 0%/30%/75% to the right side; reverse moves that mirrored palette to the left. Both cases leave bytes 152 and 162 zero. Returning to Synchronized restores matching reports, while unchanged earcup reports may be omitted. This is distinct from reverse Sweep's byte-162 flag. Native exact replay subsequently produced opposing color orders for Reflected and the mirrored left-earcup order after reversal. Both sampled replay configurations and subsequent generated Reflected/reversed Reflected plans are physically accepted. The generated plans use the first marker color in the retained header rather than copying historical header RGB; coefficient, initial-color, timing, and direction fields match the controlled capture.
+
+### Recovered serializer boundary
+
+The offline [device-definition trace](gg122-device-serializer.md) binds the shared forward serializer to GameDAC's four zone APIs. It confirms 14 input color slots, 16 output records, a per-record minimum duration of 33, nonzero-start hold sections, and Breathe integer half-span quantization before speed scaling. Header RGB is a separate lighting-element initial color; effect initial RGB comes from marker zero. The shared program also has an inverse converter for onboard-profile data, but no new readback command was executed or exposed.
+
+These static findings explain the Breathe 1322 aggregate; static evidence alone does not establish physical behavior. The original positioned builder retains its accepted spacing. An opt-in GG timing builder now implements the minimum-duration clamp, up to 14 Flow markers, and nonzero-start padding; a positioned Pulse builder implements integer half-span timing for up to four colors. After the [native experiments](experiments.md#native-six-color-flow-experiment-2026-11-09), the owner accepted the sampled approximation as close enough for task completion, waiving further controlled GG capture and definitive visual Pulse-hold confirmation. The [support boundary](compatibility.md#lighting-support) preserves the remaining uncertainty. Legacy effects retain their accepted spacing. The six-color UI mismatch, physical cycle period, and general firmware brightness behavior remain open.
+
 ### Microphone zones
 
 Two color reversals combined packet evidence with physical mute-button checks:
@@ -186,7 +210,9 @@ Therefore zone 2 is definitively the microphone live/unmuted state and zone 3 th
 - Safe and verified: generated two-color ColorShift for whole-second durations from 1 through 30 seconds; red-to-blue physically traversed purple rather than black.
 - Safe and physically verified: generated one-to-four-color Multi Color Breathe record chaining; a three-color red/green/blue plan displayed that order and faded to black between colors.
 - Safe to implement from already verified static fields: black/off, independent left/right steady colors, and mic live/muted steady colors.
-- Captured but not safe to synthesize yet: ColorShift beyond two colors, arbitrary GG marker positions, fractional multicolor speed mapping, and Reflected behavior.
+- Exact replay and generated plans physically accepted: three-color GG 122 ColorShift at 0%/25%/70%, normal and reversed Reflected at 12.00 seconds, and Synchronized at 12.34 seconds. The precise physical period was not measured. Production builders match all eight controlled reports byte-for-byte when supplied the historical header; ordinary plans initialize that header from the first color.
+- Positioned generation is bounded to two or three markers, first at 0%, strictly increasing integer percentages ending below 100%, and exact hundredth-second speeds from 1.00 through 30.00. Signed-byte rate overflow is rejected before transport. These bounds generalize the captured formula; they do not imply physical testing of every palette, marker layout, or duration. Reverse requires Reflected.
+- Not established generally: longer ColorShift palettes, nonzero first markers, duplicate/100% endpoints, fractional multicolor Breathe mapping, and physical semantics beyond the captured cases.
 - Out of scope without new evidence: firmware operations and unknown opcodes.
 
 The native `gamedacctl` protocol layer encodes this boundary as typed zones and Breathe modes, bounded duration values, exact-size reports, strict color parsing, computed zone masks, and rejection of unsupported reverse/mode combinations or captured reports with unexpected length, prefix, repeated zone, zone range, or mode marker. Its dry-run path performs no HID discovery or writes. Physical acceptance verified the Rust transport with independent steady earcup colors, both microphone states, every off target, exact Synchronized replay, generated Synchronized and Sweep, and restored static rollback while GameDAC audio remained functional.

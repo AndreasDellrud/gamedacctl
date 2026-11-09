@@ -237,6 +237,26 @@ impl Profile {
                 (*mode).into(),
                 *reverse,
             )?,
+            ProfileLighting::BreatheMarkers {
+                markers,
+                centiseconds,
+            } => LightingPlan::breathe_markers(
+                markers,
+                crate::ColorShiftDuration::from_centiseconds(*centiseconds)?,
+            )?,
+            ProfileLighting::ColorShiftMarkers {
+                markers,
+                centiseconds,
+                gg122,
+                mode,
+                reverse,
+            } => marker_flow_plan(
+                markers,
+                crate::ColorShiftDuration::from_centiseconds(*centiseconds)?,
+                *mode,
+                *reverse,
+                *gg122,
+            )?,
             ProfileLighting::ColorShift { colors, seconds } => {
                 LightingPlan::color_shift(colors, BreatheDuration::from_seconds(*seconds)?)?
             }
@@ -324,9 +344,51 @@ impl Profile {
             ProfileLighting::ColorShift { seconds, .. } => {
                 BreatheDuration::from_seconds(*seconds)?;
             }
+            ProfileLighting::ColorShiftMarkers {
+                markers,
+                centiseconds,
+                gg122,
+                mode,
+                reverse,
+            } => {
+                marker_flow_plan(
+                    markers,
+                    crate::ColorShiftDuration::from_centiseconds(*centiseconds)?,
+                    *mode,
+                    *reverse,
+                    *gg122,
+                )?;
+            }
+            ProfileLighting::BreatheMarkers {
+                markers,
+                centiseconds,
+            } => {
+                LightingPlan::breathe_markers(
+                    markers,
+                    crate::ColorShiftDuration::from_centiseconds(*centiseconds)?,
+                )?;
+            }
             ProfileLighting::Static { .. } => {}
         }
         Ok(())
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
+fn marker_flow_plan(
+    markers: &[crate::ColorMarker],
+    duration: crate::ColorShiftDuration,
+    mode: crate::ColorShiftMode,
+    reverse: bool,
+    gg122: bool,
+) -> Result<LightingPlan, ProtocolError> {
+    if gg122 {
+        LightingPlan::color_shift_markers_gg122(markers, duration, mode, reverse)
+    } else {
+        LightingPlan::color_shift_markers(markers, duration, mode, reverse)
     }
 }
 
@@ -344,6 +406,18 @@ pub enum ProfileLighting {
         seconds: u16,
         mode: ProfileBreatheMode,
         reverse: bool,
+    },
+    ColorShiftMarkers {
+        markers: Vec<crate::ColorMarker>,
+        centiseconds: u16,
+        #[serde(default, skip_serializing_if = "is_false")]
+        gg122: bool,
+        mode: crate::ColorShiftMode,
+        reverse: bool,
+    },
+    BreatheMarkers {
+        markers: Vec<crate::ColorMarker>,
+        centiseconds: u16,
     },
     ColorShift {
         colors: Vec<Color>,

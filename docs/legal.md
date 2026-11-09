@@ -2,7 +2,7 @@
 title: Legal and publication considerations
 type: synthesis
 status: mixed
-updated: 2026-09-05
+updated: 2026-11-09
 sources:
   - docs/research-process.md
   - docs/protocol.md
@@ -14,7 +14,7 @@ sources:
 
 This page records research findings and risk controls for a Sweden-based personal or open-source interoperability project. It is not legal advice and does not establish how a court would decide a particular dispute. Obtain advice from a Swedish intellectual-property lawyer before commercialization, paid support, accepting investment, or responding to a legal demand.
 
-The present method observes USB messages produced during ordinary use of lawfully installed SteelSeries GG with an owned GameDAC. It does not copy GG source code, decompile object code, bypass authentication or encryption, modify firmware, defeat firmware signing, access a cloud service, or redistribute SteelSeries software.
+The original protocol baseline observes USB messages produced during ordinary use of lawfully installed SteelSeries GG with an owned GameDAC. The [GG 122 offline investigation](gg122-lighting-research.md) additionally inspects owner-supplied local application assets and necessary native serialization paths. The [device serializer follow-up](gg122-device-serializer.md) privately decoded three encrypted packaged resources using the inspected local decoder path and recorded their integrity checks and artifact hashes. Proprietary code, decoding inputs, and analysis output stay in private local research storage; published findings are independently written. This work does not modify firmware, defeat firmware signing, access a SteelSeries cloud service, or redistribute SteelSeries software. The resource decoding is a separate step from packet observation; its technical success does not establish a legal conclusion.
 
 ## Copyright and interoperability
 
@@ -26,7 +26,7 @@ Section 26h permits reproduction or translation of code when necessary to obtain
 
 In [SAS Institute v World Programming, C-406/10](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A62010CA0406), the Court of Justice of the European Union held that program functionality, programming languages, and data-file formats used to exploit functions are not themselves protected forms of program expression. A USB lighting protocol is not identical to that case's facts, but the distinction between functionality/interface information and copied expression is relevant.
 
-The current packet-observation method fits more naturally under observation and testing than decompilation. Future work should not decompile GG unless it is genuinely necessary for interoperability, the information is not readily available, and the narrower §26h conditions have been reviewed.
+The packet-observation method fits more naturally under observation and testing than decompilation. Native analysis must remain limited to information necessary for interoperability that is not readily available from readable assets and existing captures; the narrower §26h conditions still apply. Adding an analysis tool does not itself establish that a particular use satisfies those conditions.
 
 ## Trade-secret considerations
 

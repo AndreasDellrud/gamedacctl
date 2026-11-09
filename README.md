@@ -6,7 +6,7 @@ An independent Linux lighting controller for the original wired SteelSeries Arct
 
 <img src="docs/images/gamedacctl-window.png" alt="GameDAC Lighting showing an Everyday Color Flow profile with microphone colors" width="600">
 
-`gamedacctl` can set independent Solid Left, Right, and microphone-state colors, turn lighting off without replacing the selected profile, generate two-color Color Flow, one-to-four-color Color Pulse, and the connected Across effect, and optionally restore the saved state after reconnect. It controls GameDAC USB device `1038:1280`; audio remains on the separate `1038:1282` interface.
+`gamedacctl` can set independent Solid Left, Right, and microphone-state colors, turn lighting off without replacing the selected profile, generate two-color Color Flow or positioned two-to-three-color Flow with Reflected motion, one-to-four-color Color Pulse, and the connected Across effect, and optionally restore the saved state after reconnect. It controls GameDAC USB device `1038:1280`; audio remains on the separate `1038:1282` interface.
 
 ## Install on Arch Linux
 
@@ -92,9 +92,23 @@ mise exec -- cargo run -- --dry-run breathe \
 mise exec -- cargo run -- --dry-run color-shift \
   --color FF0000 --color 0000FF --seconds 5
 
+# Explicit RGB marker positions, fractional speed, and opposing earcup motion:
+mise exec -- cargo run --bin gamedacctl -- --dry-run color-shift-markers \
+  --marker FF0000@0 --marker 00FF00@25 --marker 0000FF@70 \
+  --seconds 12.34 --reflected
+
 mise exec -- cargo run -- --dry-run multi-color-breathe \
   --color FF0000 --color 00FF00 --color 0000FF --seconds 9
 ```
+
+The local GG timing extension received owner acceptance as a bounded approximation after native testing; [the support boundary](docs/compatibility.md#lighting-support) records the sampled cases and remaining uncertainty. Use `color-shift-markers --gg122` to opt into up to 14 markers, optional nonzero first position, and GG's minimum transition lengths. `breathe-markers` accepts one through four markers with fractional duration and synchronized earcups. For example, to inspect the known three-color Pulse timing without device access:
+
+```bash
+mise exec -- cargo run --bin gamedacctl -- --dry-run breathe-markers \
+  --marker FF0000@0 --marker FF7300@33 --marker FF9D00@66 --seconds 13.50
+```
+
+The GUI exposes Marker positions for Flow and Pulse, and a separate GG timing switch for positioned Flow. Existing profiles and CLI commands retain their prior timing unless explicitly opted in.
 
 After device permissions are configured, omit `--dry-run` to apply the selected configuration. `off` defaults to `--target effect`, which covers Left and Right; use `off --target microphone` or `off --target all` explicitly for the microphone zones.
 
@@ -124,7 +138,7 @@ Use the [hardware report form](https://github.com/AndreasDellrud/gamedacctl/issu
 
 ## Safety
 
-Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified Steady fields and the observed coefficient-record family on known zones. Durations intentionally accept only whole seconds from 1 through 30. ColorShift is limited to the verified two-color form; Multi Color Breathe accepts the manually observed one-to-four-color range. Longer ColorShift palettes, arbitrary GG marker positions, fractional GG speed mapping, and Reflected generation remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
+Only packets observed from SteelSeries GG are replayed. Generated commands are limited to verified Steady fields and the observed coefficient-record family on known zones. Legacy Color Flow and Color Pulse retain whole-second durations from 1 through 30. The opt-in positioned Color Flow path accepts two or three increasing integer percentages, first at 0% and last below 100%, with exact 1.00–30.00-second duration and optional Reflected motion. In the GUI, enable Marker positions; Reverse is available only with Reflected. The RGB 0%/25%/70% Reflected/reversed and 12.34-second Synchronized cases have physical acceptance; other bounded combinations generalize the captured formula, with excessive transition rates rejected. Longer ColorShift palettes, nonzero first markers, duplicate/100% endpoints, and fractional Color Pulse mapping remain disabled. Do not fuzz unknown commands or accept GameDAC firmware updates inside the Windows VM during capture work.
 
 The application reports successful writes, not firmware readback. Use it at your own risk; unsupported hardware is rejected rather than probed.
 

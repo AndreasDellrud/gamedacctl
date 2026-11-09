@@ -2,7 +2,7 @@
 title: Windows and capture workflow
 type: pattern
 status: current
-updated: 2026-09-05
+updated: 2026-11-09
 sources:
   - docs/raw/capture-effects-20260904-2323.usbmon
   - docs/raw/capture-zones-20260904.usbmon
@@ -103,6 +103,8 @@ tshark -r /tmp/gamedac-capture.pcapng \
 Replace device 22 with the current address. Verify the filtered file contains only that address, record its SHA-256, and never commit the temporary whole-bus capture.
 
 ## Safety and cleanup
+
+For short native capture windows, prepare and dry-run the exact lighting command before acquisition, then dispatch it immediately after capture readiness within the same orchestrated operation. A 20-second window can expire during interactive analysis or command preparation. Opening the native HID device can record standard descriptor requests before any lighting reports; a descriptor-only capture does not prove that the intended lighting write was recorded. The [2026-11-09 leading-hold experiment](experiments.md#native-leading-hold-and-reflected-experiments-2026-11-09) records this failure and the coordinated retry. Keep native traffic labeled separately from GG evidence.
 
 - Do not accept a GameDAC firmware update during protocol capture.
 - Do not pass USB storage devices into a first-time Windows installation.

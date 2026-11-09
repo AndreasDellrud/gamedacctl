@@ -2,7 +2,7 @@
 title: Reverse-engineering and verification process
 type: pattern
 status: current
-updated: 2026-09-05
+updated: 2026-10-21
 sources:
   - docs/capture-workflow.md
   - docs/protocol.md
@@ -29,9 +29,15 @@ Every protocol claim uses one of these levels:
 
 GG labels describe actions requested in the UI. They do not prove firmware semantics. Physical behavior is verified only through direct observation after a native replay.
 
+### Static artifact evidence
+
+Offline inspection of an owner-supplied GG installation can establish a code path or packaged constant for that exact artifact version. Record the version, SHA-256, internal path, module/function locator, analysis tool, and coverage limits. Describe such results as static findings; they do not qualify as observed USB traffic or verified physical behavior. Keep pseudocode interpretations distinct from exact packaged JavaScript and from actual execution. Compare proposed wire formulas against complete captures before changing packet generation.
+
+Keep proprietary targets, extracted code, and decompiler output in private local research storage outside the Git checkout. Do not evaluate bundle bootstrap code merely to inspect a module. Use read-only native analysis for necessary interoperability questions that readable assets and captures cannot answer. Publish independently written interface findings rather than target code; follow [the legal and publication considerations](legal.md). The [GG 122 investigation](gg122-lighting-research.md) records the first use of this route.
+
 ## Safety boundary
 
-Allowed research is limited to ordinary lighting reports observed from GG while operating the owned GameDAC. Do not fuzz opcodes, probe firmware paths, accept firmware updates, copy proprietary executables, or send a packet whose command family was not observed.
+Hardware research is limited to ordinary lighting reports observed from GG while operating the owned GameDAC. Offline artifact inspection does not authorize hardware transmission. Do not fuzz opcodes, probe firmware paths, accept firmware updates, redistribute proprietary executables, or send a packet whose command family was not observed. Analysis tools may create private transient working copies; these must never be staged in Git or included in release artifacts.
 
 Before any native replay:
 

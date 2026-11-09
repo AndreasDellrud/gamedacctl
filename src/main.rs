@@ -7,7 +7,8 @@ use std::{
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use gamedacctl::{
-    BreatheDuration, BreatheMode, Color, LightingPlan, Zone,
+    BreatheDuration, BreatheMode, Color, ColorMarker, ColorShiftDuration, ColorShiftMode,
+    LightingPlan, Zone,
     capture::extract_plan,
     profile::{ProfileLighting, ProfileStore},
     transport::{HidTransport, Transport},
@@ -64,6 +65,28 @@ enum Command {
         colors: Vec<Color>,
         #[arg(long, value_name = "SECONDS")]
         seconds: u16,
+    },
+    /// Color Flow with two or three explicit markers (for example FF0000@0).
+    ColorShiftMarkers {
+        #[arg(long = "marker", required = true, action = clap::ArgAction::Append)]
+        markers: Vec<ColorMarker>,
+        #[arg(long)]
+        seconds: ColorShiftDuration,
+        /// Use GG122 timing: up to 14 markers, leading holds and minimum durations.
+        #[arg(long)]
+        gg122: bool,
+        #[arg(long)]
+        reflected: bool,
+        /// Swap the reflected earcup; requires --reflected.
+        #[arg(long, requires = "reflected")]
+        reverse: bool,
+    },
+    /// Color Pulse with one to four explicit percentage markers and GG122 timing.
+    BreatheMarkers {
+        #[arg(long = "marker", required = true, action = clap::ArgAction::Append)]
+        markers: Vec<ColorMarker>,
+        #[arg(long)]
+        seconds: ColorShiftDuration,
     },
     /// Breathe one to four colors with black between them on Left and Right.
     MultiColorBreathe {
@@ -251,6 +274,32 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::ColorShift { colors, seconds } => {
             LightingPlan::color_shift(&colors, BreatheDuration::from_seconds(seconds)?)?
         }
+        Command::ColorShiftMarkers {
+            markers,
+            seconds,
+            reflected,
+            reverse,
+            gg122,
+        } => {
+            let build = if gg122 {
+                LightingPlan::color_shift_markers_gg122
+            } else {
+                LightingPlan::color_shift_markers
+            };
+            build(
+                &markers,
+                seconds,
+                if reflected {
+                    ColorShiftMode::Reflected
+                } else {
+                    ColorShiftMode::Synchronized
+                },
+                reverse,
+            )?
+        }
+        Command::BreatheMarkers { markers, seconds } => {
+            LightingPlan::breathe_markers(&markers, seconds)?
+        }
         Command::MultiColorBreathe { colors, seconds } => {
             LightingPlan::multi_color_breathe(&colors, BreatheDuration::from_seconds(seconds)?)?
         }
@@ -315,8 +364,10 @@ fn print_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
                 effect: match &profile.lighting {
                     ProfileLighting::Static { .. } => "static",
                     ProfileLighting::Breathe { .. } => "breathe",
-                    ProfileLighting::ColorShift { .. } => "color-shift",
-                    ProfileLighting::MultiColorBreathe { .. } => "multi-color-breathe",
+                    ProfileLighting::ColorShift { .. }
+                    | ProfileLighting::ColorShiftMarkers { .. } => "color-shift",
+                    ProfileLighting::MultiColorBreathe { .. }
+                    | ProfileLighting::BreatheMarkers { .. } => "multi-color-breathe",
                 },
             })
             .collect(),

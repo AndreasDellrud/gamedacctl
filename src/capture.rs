@@ -244,6 +244,210 @@ mod tests {
     }
 
     #[test]
+    fn reconstructs_gg122_marker_timing_and_reflected_palettes_byte_for_byte() {
+        let path = capture("capture-reflected-timing-controlled-20261021.pcapng");
+        assert_eq!(
+            sha256(&std::fs::read(&path).unwrap()),
+            "1feb516c59e9e27789e89bb36a0231422536c7d4ff56c4dc1a35f878d273398f"
+        );
+
+        // Independent reconstruction plus production comparison against immutable
+        // captures. Generated native reports still need physical acceptance.
+        // Reflected mirrors one palette instead of setting the wire reverse bit.
+        for (frame, zone, reflected, centiseconds) in [
+            (1, Zone::Right, false, 1200_u16),
+            (3, Zone::Left, false, 1200),
+            (11, Zone::Right, true, 1200),
+            (19, Zone::Right, false, 1200),
+            (21, Zone::Left, true, 1200),
+            (29, Zone::Left, false, 1200),
+            (37, Zone::Right, false, 1234),
+            (39, Zone::Left, false, 1234),
+        ] {
+            let red = Color::new(255, 0, 0);
+            let green = Color::new(0, 255, 0);
+            let blue = Color::new(0, 0, 255);
+            let palette: [(Color, u16); 3] = if reflected {
+                [(red, 0), (blue, 30), (green, 75)]
+            } else {
+                [(red, 0), (green, 25), (blue, 70)]
+            };
+
+            let mut expected = [0_u8; 1024];
+            expected[..12].copy_from_slice(&[
+                0xAA,
+                zone.id(),
+                0xFF,
+                0x3C,
+                0,
+                0xFF,
+                0x32,
+                0xC8,
+                0xC8,
+                0,
+                zone.id(),
+                0,
+            ]);
+            let mut aggregate = 0_u16;
+            for index in 0..palette.len() {
+                let (from, position) = palette[index];
+                let to = palette[(index + 1) % palette.len()].0;
+                let next_position = palette.get(index + 1).map_or(100, |(_, p)| *p);
+                let ticks =
+                    (u32::from(centiseconds) * u32::from(next_position - position) / 100) as u16;
+                aggregate += ticks;
+                let offset = 12 + index * 8;
+                for (channel, (start, end)) in from.bytes().into_iter().zip(to.bytes()).enumerate()
+                {
+                    let rate = ((i32::from(end) - i32::from(start)) << 4) / i32::from(ticks);
+                    expected[offset + channel] = i8::try_from(rate).unwrap() as u8;
+                }
+                expected[offset + 4..offset + 6].copy_from_slice(&ticks.to_le_bytes());
+                expected[offset + 6] = if index == 2 { 0 } else { (index + 1) as u8 };
+            }
+            expected[140..146].copy_from_slice(&[0xF0, 0x0F, 0, 0, 0, 0]);
+            expected[146] = 0xFF;
+            expected[156] = 1;
+            expected[158] = 3;
+            expected[160..162].copy_from_slice(&aggregate.to_le_bytes());
+
+            let captured = extract_report(&path, frame).unwrap();
+            assert_eq!(expected.as_slice(), captured.bytes(), "frame {frame}");
+            let markers = [
+                crate::ColorMarker {
+                    color: red,
+                    percent: 0,
+                },
+                crate::ColorMarker {
+                    color: green,
+                    percent: 25,
+                },
+                crate::ColorMarker {
+                    color: blue,
+                    percent: 70,
+                },
+            ];
+            let generated = FeatureReport::color_shift_markers(
+                zone,
+                Color::new(255, 60, 0),
+                &markers,
+                crate::ColorShiftDuration::from_centiseconds(centiseconds).unwrap(),
+                reflected,
+            )
+            .unwrap();
+            assert_eq!(
+                generated.bytes(),
+                captured.bytes(),
+                "production frame {frame}"
+            );
+            let gg122 = FeatureReport::color_shift_markers_gg122(
+                zone,
+                Color::new(255, 60, 0),
+                &markers,
+                crate::ColorShiftDuration::from_centiseconds(centiseconds).unwrap(),
+                reflected,
+            )
+            .unwrap();
+            assert_eq!(gg122.bytes(), captured.bytes(), "GG timing frame {frame}");
+            assert_eq!(aggregate, if centiseconds == 1234 { 1233 } else { 1200 });
+        }
+    }
+
+    #[test]
+    fn production_marker_plans_match_controlled_earcup_pairs() {
+        use crate::{ColorMarker, ColorShiftDuration, ColorShiftMode};
+        let path = capture("capture-reflected-timing-controlled-20261021.pcapng");
+        let markers =
+            ["FF0000@0", "00FF00@25", "0000FF@70"].map(|v| v.parse::<ColorMarker>().unwrap());
+        for (frames, mode, reverse, ticks) in [
+            ([1, 3], ColorShiftMode::Synchronized, false, 1200),
+            ([11, 3], ColorShiftMode::Reflected, false, 1200),
+            ([19, 21], ColorShiftMode::Reflected, true, 1200),
+            ([37, 39], ColorShiftMode::Synchronized, false, 1234),
+        ] {
+            let plan = LightingPlan::color_shift_markers(
+                &markers,
+                ColorShiftDuration::from_centiseconds(ticks).unwrap(),
+                mode,
+                reverse,
+            )
+            .unwrap();
+            for (report, frame) in plan.features().iter().zip(frames) {
+                let captured = extract_report(&path, frame).unwrap();
+                let mut expected = *captured.bytes();
+                // Product generation sets the retained header to the first color.
+                expected[2..5].copy_from_slice(&markers[0].color.bytes());
+                assert_eq!(report.bytes(), &expected, "plan frame {frame}");
+            }
+            assert_eq!(plan.outputs()[0].bytes()[..3], [0xA5, 3, 0x0A]);
+        }
+    }
+
+    #[test]
+    fn recovered_breathe_integer_span_model_matches_old_fractional_preset() {
+        // Independent research reconstruction from the GG122 descriptor findings.
+        // No proprietary resource or interpreter is required by this test.
+        // Breathe halves the integer percentage span BEFORE scaling by speed.
+        let colors = [
+            Color::new(255, 0, 0),
+            Color::new(255, 115, 0),
+            Color::new(255, 157, 0),
+        ];
+        let positions = [0_u16, 33, 66, 100];
+        let mut expected = [0_u8; 1024];
+        expected[..12].copy_from_slice(&[0xAA, 2, 1, 2, 3, 0xFF, 0x32, 0xC8, 0xC8, 0, 2, 0]);
+        let mut aggregate = 0_u16;
+        let mut initial = colors[0];
+        for index in 0..colors.len() {
+            let half_span = (positions[index + 1] - positions[index]) / 2;
+            let ticks = (1350 * u32::from(half_span) / 100).max(33) as u16;
+            for (part, target) in [Color::BLACK, colors[(index + 1) % colors.len()]]
+                .into_iter()
+                .enumerate()
+            {
+                let record = index * 2 + part;
+                let offset = 12 + record * 8;
+                for (channel, (from, to)) in
+                    initial.bytes().into_iter().zip(target.bytes()).enumerate()
+                {
+                    let rate = (16 * (i32::from(to) - i32::from(from))) / i32::from(ticks);
+                    expected[offset + channel] = i8::try_from(rate).unwrap() as u8;
+                }
+                expected[offset + 4..offset + 6].copy_from_slice(&ticks.to_le_bytes());
+                expected[offset + 6] = if record == 5 { 0 } else { (record + 1) as u8 };
+                aggregate += ticks;
+                initial = target;
+            }
+        }
+        expected[140..146].copy_from_slice(&[0xF0, 0x0F, 0, 0, 0, 0]);
+        expected[146] = 255;
+        expected[156] = 1;
+        expected[158] = 6;
+        expected[160..162].copy_from_slice(&aggregate.to_le_bytes());
+        assert_eq!(aggregate, 1322);
+        let captured =
+            extract_report(&capture("capture-effect-presets-20260905.pcapng"), 21).unwrap();
+        assert_eq!(expected.as_slice(), captured.bytes());
+        let markers = colors
+            .into_iter()
+            .zip([0, 33, 66])
+            .map(|(color, percent)| crate::ColorMarker { color, percent })
+            .collect::<Vec<_>>();
+        let generated = FeatureReport::breathe_markers(
+            Zone::MicrophoneLive,
+            Color::new(1, 2, 3),
+            &markers,
+            crate::ColorShiftDuration::from_centiseconds(1350).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            generated.bytes(),
+            captured.bytes(),
+            "production positioned Breathe"
+        );
+    }
+
+    #[test]
     fn rejects_missing_captures_and_invalid_frames_before_tshark() {
         assert!(matches!(
             extract_plan(Path::new("does-not-exist.pcapng"), &[1]),
