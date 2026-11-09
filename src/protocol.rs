@@ -54,6 +54,79 @@ impl BreatheDuration {
     }
 }
 
+/// Exact GG speed in hundredths of a second, bounded to the observed UI range.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ColorShiftDuration(u16);
+
+impl ColorShiftDuration {
+    pub fn from_centiseconds(value: u16) -> Result<Self, ProtocolError> {
+        if !(100..=3000).contains(&value) {
+            return Err(ProtocolError::InvalidColorShiftDuration(value.to_string()));
+        }
+        Ok(Self(value))
+    }
+
+    pub const fn centiseconds(self) -> u16 {
+        self.0
+    }
+}
+
+impl FromStr for ColorShiftDuration {
+    type Err = ProtocolError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let invalid = || ProtocolError::InvalidColorShiftDuration(value.to_owned());
+        let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
+        if whole.is_empty()
+            || !whole.bytes().all(|b| b.is_ascii_digit())
+            || fraction.len() > 2
+            || !fraction.bytes().all(|b| b.is_ascii_digit())
+            || (value.contains('.') && fraction.is_empty())
+        {
+            return Err(invalid());
+        }
+        let whole: u16 = whole.parse().map_err(|_| invalid())?;
+        let fraction: u16 = if fraction.is_empty() {
+            0
+        } else {
+            fraction.parse::<u16>().map_err(|_| invalid())?
+                * if fraction.len() == 1 { 10 } else { 1 }
+        };
+        let ticks = whole
+            .checked_mul(100)
+            .and_then(|v| v.checked_add(fraction))
+            .ok_or_else(invalid)?;
+        Self::from_centiseconds(ticks)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ColorMarker {
+    pub color: Color,
+    pub percent: u8,
+}
+
+impl FromStr for ColorMarker {
+    type Err = ProtocolError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let (color, percent) = value
+            .split_once('@')
+            .ok_or(ProtocolError::InvalidMarkerLayout)?;
+        Ok(Self {
+            color: color.parse()?,
+            percent: percent
+                .parse()
+                .map_err(|_| ProtocolError::InvalidMarkerLayout)?,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorShiftMode {
+    Synchronized,
+    Reflected,
+}
+
 impl Zone {
     pub const fn id(self) -> u8 {
         self as u8
@@ -153,6 +226,20 @@ pub enum ProtocolError {
         "color must contain exactly six hexadecimal digits, optionally prefixed by #; got {0:?}"
     )]
     InvalidColor(String),
+    #[error(
+        "Positioned animation duration must be 1.00 through 30.00 seconds with at most two decimal places; got {0:?}"
+    )]
+    InvalidColorShiftDuration(String),
+    #[error(
+        "Color Flow requires two or three increasing integer marker percentages, starting at 0 and ending below 100"
+    )]
+    InvalidMarkerLayout,
+    #[error(
+        "GG timing requires {min} through {max} colors at strictly increasing integer percentages below 100"
+    )]
+    InvalidGgMarkerLayout { min: usize, max: usize },
+    #[error("Color Flow reverse requires Reflected mode")]
+    ReverseRequiresReflected,
     #[error("zone {0} is not a supported GameDAC lighting zone")]
     UnsupportedZone(u8),
     #[error("feature report has {actual} bytes; expected {FEATURE_REPORT_LEN}")]
@@ -280,6 +367,135 @@ impl FeatureReport {
         )
     }
 
+    /// Positioned ColorShift records. Reflection is a palette transformation,
+    /// never a Breathe phase/reverse flag.
+    pub fn color_shift_markers(
+        zone: Zone,
+        header_color: Color,
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        reflected: bool,
+    ) -> Result<Self, ProtocolError> {
+        if !(2..=3).contains(&markers.len())
+            || markers[0].percent != 0
+            || markers.last().is_some_and(|m| m.percent >= 100)
+            || markers
+                .windows(2)
+                .any(|pair| pair[0].percent >= pair[1].percent)
+        {
+            return Err(ProtocolError::InvalidMarkerLayout);
+        }
+        let mut palette = markers.to_vec();
+        if reflected {
+            palette[1..].reverse();
+            for marker in &mut palette[1..] {
+                marker.percent = 100 - marker.percent;
+            }
+        }
+        let targets = palette
+            .iter()
+            .skip(1)
+            .map(|m| m.color)
+            .chain(std::iter::once(palette[0].color))
+            .collect::<Vec<_>>();
+        let ticks = palette
+            .iter()
+            .enumerate()
+            .map(|(index, marker)| {
+                let span = palette.get(index + 1).map_or(100, |m| m.percent) - marker.percent;
+                (u32::from(duration.0) * u32::from(span) / 100) as u16
+            })
+            .collect::<Vec<_>>();
+        if ticks.contains(&0) {
+            return Err(ProtocolError::InvalidMarkerLayout);
+        }
+        Self::animation_with_ticks(
+            zone,
+            header_color,
+            palette[0].color,
+            &targets,
+            &ticks,
+            BreatheMode::Synchronized,
+            false,
+            "ColorShift markers",
+        )
+    }
+
+    pub fn color_shift_markers_gg122(
+        zone: Zone,
+        header_color: Color,
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        reflected: bool,
+    ) -> Result<Self, ProtocolError> {
+        validate_gg_markers(markers, 2, MAX_COLOR_SHIFT_COLORS)?;
+        let mut palette = markers.to_vec();
+        if reflected {
+            if palette[0].percent == 0 {
+                palette[1..].reverse();
+                for marker in &mut palette[1..] {
+                    marker.percent = 100 - marker.percent;
+                }
+            } else {
+                palette.reverse();
+                for marker in &mut palette {
+                    marker.percent = 100 - marker.percent;
+                }
+            }
+        }
+        Self::positioned_animation(zone, header_color, &palette, duration, false)
+    }
+
+    pub fn breathe_markers(
+        zone: Zone,
+        header_color: Color,
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+    ) -> Result<Self, ProtocolError> {
+        validate_gg_markers(markers, 1, MAX_MULTI_COLOR_BREATHE_COLORS)?;
+        Self::positioned_animation(zone, header_color, markers, duration, true)
+    }
+
+    fn positioned_animation(
+        zone: Zone,
+        header_color: Color,
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        breathe: bool,
+    ) -> Result<Self, ProtocolError> {
+        let mut targets = Vec::new();
+        let mut ticks = Vec::new();
+        let segment_ticks = |span: u8| {
+            let span = if breathe { span / 2 } else { span };
+            (u32::from(duration.0) * u32::from(span) / 100).max(33) as u16
+        };
+        if markers[0].percent != 0 {
+            targets.push(markers[0].color);
+            ticks.push(segment_ticks(markers[0].percent));
+        }
+        for (index, marker) in markers.iter().enumerate() {
+            let next = markers.get(index + 1);
+            let span = next.map_or(100, |m| m.percent) - marker.percent;
+            let transition_ticks = segment_ticks(span);
+            if breathe {
+                targets.push(Color::BLACK);
+                ticks.push(transition_ticks);
+            }
+            targets.push(next.unwrap_or(&markers[0]).color);
+            ticks.push(transition_ticks);
+        }
+        Self::animation_with_ticks(
+            zone,
+            header_color,
+            markers[0].color,
+            &targets,
+            &ticks,
+            BreatheMode::Synchronized,
+            false,
+            "GG positioned animation",
+        )
+    }
+
     pub fn multi_color_breathe(
         zone: Zone,
         header_color: Color,
@@ -331,6 +547,30 @@ impl FeatureReport {
         reverse: bool,
         effect: &'static str,
     ) -> Result<Self, ProtocolError> {
+        let ticks = distribute_ticks(duration.centiseconds(), targets.len());
+        Self::animation_with_ticks(
+            zone,
+            header_color,
+            initial_color,
+            targets,
+            &ticks,
+            mode,
+            reverse,
+            effect,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn animation_with_ticks(
+        zone: Zone,
+        header_color: Color,
+        initial_color: Color,
+        targets: &[Color],
+        ticks: &[u16],
+        mode: BreatheMode,
+        reverse: bool,
+        effect: &'static str,
+    ) -> Result<Self, ProtocolError> {
         let mut bytes = [0; FEATURE_REPORT_LEN];
         let [header_red, header_green, header_blue] = header_color.bytes();
         bytes[..12].copy_from_slice(&[
@@ -348,9 +588,13 @@ impl FeatureReport {
             0x00,
         ]);
 
-        let ticks = distribute_ticks(duration.centiseconds(), targets.len());
         let mut from = initial_color;
-        for (index, (target, transition_ticks)) in targets.iter().copied().zip(ticks).enumerate() {
+        for (index, (target, transition_ticks)) in targets
+            .iter()
+            .copied()
+            .zip(ticks.iter().copied())
+            .enumerate()
+        {
             let offset = 12 + index * 8;
             for (channel_offset, (from_channel, to_channel)) in
                 from.bytes().into_iter().zip(target.bytes()).enumerate()
@@ -380,7 +624,7 @@ impl FeatureReport {
         bytes[152] = mode.phase_flag();
         bytes[156] = 0x01;
         bytes[158] = targets.len() as u8;
-        bytes[160..162].copy_from_slice(&duration.centiseconds().to_le_bytes());
+        bytes[160..162].copy_from_slice(&ticks.iter().sum::<u16>().to_le_bytes());
         bytes[162] = u8::from(reverse);
 
         Ok(Self { bytes, zone })
@@ -499,6 +743,64 @@ impl LightingPlan {
         Self::captured(features)
     }
 
+    pub fn color_shift_markers(
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        mode: ColorShiftMode,
+        reverse: bool,
+    ) -> Result<Self, ProtocolError> {
+        Self::color_shift_marker_plan(markers, duration, mode, reverse, false)
+    }
+
+    pub fn color_shift_markers_gg122(
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        mode: ColorShiftMode,
+        reverse: bool,
+    ) -> Result<Self, ProtocolError> {
+        Self::color_shift_marker_plan(markers, duration, mode, reverse, true)
+    }
+
+    fn color_shift_marker_plan(
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+        mode: ColorShiftMode,
+        reverse: bool,
+        gg122: bool,
+    ) -> Result<Self, ProtocolError> {
+        if reverse && mode != ColorShiftMode::Reflected {
+            return Err(ProtocolError::ReverseRequiresReflected);
+        }
+        let header = markers.first().map_or(Color::BLACK, |m| m.color);
+        let features = [Zone::Right, Zone::Left]
+            .into_iter()
+            .map(|zone| {
+                let reflected =
+                    mode == ColorShiftMode::Reflected && (zone == Zone::Right) != reverse;
+                if gg122 {
+                    FeatureReport::color_shift_markers_gg122(
+                        zone, header, markers, duration, reflected,
+                    )
+                } else {
+                    FeatureReport::color_shift_markers(zone, header, markers, duration, reflected)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::captured(features)
+    }
+
+    pub fn breathe_markers(
+        markers: &[ColorMarker],
+        duration: ColorShiftDuration,
+    ) -> Result<Self, ProtocolError> {
+        let header = markers.first().map_or(Color::BLACK, |m| m.color);
+        let features = [Zone::Right, Zone::Left]
+            .into_iter()
+            .map(|zone| FeatureReport::breathe_markers(zone, header, markers, duration))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::captured(features)
+    }
+
     pub fn multi_color_breathe(
         colors: &[Color],
         duration: BreatheDuration,
@@ -553,6 +855,22 @@ fn validate_color_count(
             max,
             actual: colors.len(),
         });
+    }
+    Ok(())
+}
+
+fn validate_gg_markers(
+    markers: &[ColorMarker],
+    min: usize,
+    max: usize,
+) -> Result<(), ProtocolError> {
+    if !(min..=max).contains(&markers.len())
+        || markers.last().is_some_and(|m| m.percent >= 100)
+        || markers
+            .windows(2)
+            .any(|pair| pair[0].percent >= pair[1].percent)
+    {
+        return Err(ProtocolError::InvalidGgMarkerLayout { min, max });
     }
     Ok(())
 }

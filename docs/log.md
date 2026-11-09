@@ -2,11 +2,75 @@
 title: Documentation log
 type: journal
 status: current
-updated: 2026-09-06
+updated: 2026-11-09
 sources: []
 ---
 
 # Documentation log
+
+## [2026-11-09] acceptance | Accept the bounded native approximation for completion
+
+The owner requested closure as “just close enough” after the native tests. Updated the canonical task's acceptance/design fields to waive additional controlled GG captures and definitive visual Pulse leading-hold confirmation as completion requirements. Reconciled current support/profile/protocol documentation while preserving the original observations, immutable captures, unmeasured periods, and untested full 14-color boundary. This decision accepts the bounded approximation without claiming additional verification or authorizing publication.
+
+## [2026-11-09] experiment | Record Pulse observations and restore Moonlander
+
+The owner accepted the positioned Pulse baseline's two-earcup behavior, visually complete dimming, and working audio. Moving only its first marker to 10% produced [native reports](raw/capture-native-positioned-pulse-hold-20261109.pcapng) matching the independently reconstructed leading-hold model, but the owner could not confidently distinguish the subtle visual change. Recorded that physical result as inconclusive. Restored the saved `Moonlander` earcup and microphone lighting through direct CLI commands without rewriting the profile store; its original hash and selected profile remained intact, status was Ready, and the Linux default audio sink/volume were unchanged. Native captures and observations remain distinct from missing controlled GG corroboration; the extension is still experimental.
+
+## [2026-11-09] experiment | Send positioned Pulse with the historical preset layout
+
+After the owner returned and requested a retry, recorded and sent synchronized positioned Pulse at 13.50 seconds with the historical red/orange/gold 0/33/66% palette. Both [native feature reports](raw/capture-native-positioned-pulse-20261109.pcapng) match the old GG 118 preset after only the known zone/header substitutions, including aggregate 1322. Transport and saved-profile checks passed; physical dimming behavior remains a separate observation. No new GG 122 corroboration or measured cycle period is claimed.
+
+## [2026-11-09] experiment | Exercise the Flow duration minimum
+
+Changed only the accepted nonzero-start Reflected case's requested duration to 1.00 second. The [native capture](raw/capture-native-minimum-duration-flow-20261109.pcapng) matches independent full-report reconstructions with seven 33-tick sections and aggregate 231 on each earcup. The owner reported faster motion, no flicker, and working audio. This is sampled native acceptance of the clamped case, not a measured physical period or GG corroboration. The subsequent positioned Pulse experiment was prepared but not sent because capture authentication was not completed; the pending authentication process was cancelled, leaving no capture running.
+
+## [2026-11-09] experiment | Test a nonzero Flow start and reflected palette
+
+After qualitative acceptance of the six-color zero-start case, changed only the red marker to 10%. The owner observed faster red → green movement, consistent with the source-derived span change. Recorded a repeat of this Synchronized case and a subsequent Reflected case in a separately labeled [native capture](raw/capture-native-leading-hold-reflected-20261109.pcapng). Independent reconstructions match all four complete reports, including the nonzero-start full palette reversal. Successful transfers and source-model agreement remain distinct from physical Reflected acceptance and controlled GG corroboration.
+
+## [2026-11-09] experiment | Send a bounded six-color Flow from Linux
+
+After GG continued crashing in its lighting controls, the owner authorized bounded native testing with source-derived assumptions. Stopped Windows, verified Linux control/audio ownership, prepared static rollback, and sent synchronized six-color zero-start Flow at 12.34 seconds without changing saved profiles or microphone zones. Preserved a separately labeled [native lighting capture](raw/capture-native-six-color-flow-20261109.pcapng); both full reports match the independently reconstructed six-record model with aggregate 1230. Transfers completed successfully and profile/audio-state checks passed. These bytes are not new GG corroboration, and owner physical observation remains separate from transport success. See [the experiment record](experiments.md#native-six-color-flow-experiment-2026-11-09).
+
+## [2026-11-09] recovery | Restore GG 122 findings and implementation to the feature worktree
+
+Recovered the independently written serializer findings, marker builders, CLI/profile/GUI changes, tests, and two immutable October capture fixtures from the main checkout's uncommitted work. The source checkout was left intact, and the recovered capture hashes match the raw catalog. Corrected the legal-method description to acknowledge the documented private resource decoding and reconciled the compatibility table with the opt-in implementation. The GUI now leaves GG timing off for new or legacy unpositioned drafts and enables it only when loading an explicitly opted-in marker profile; the round-trip test checks this default. This recovery adds no new capture or physical acceptance. Expanded GG timing remains pending controlled capture and owner verification; the owner requested offline recovery first because Windows/GG is not ready.
+
+## [2026-10-21] implementation | Add explicit GG timing builders pending expanded acceptance
+
+Implemented opt-in GG timing for two through fourteen Color Flow markers, nonzero-start holds, minimum transition duration 33, and reflected palette handling. Added synchronized positioned Color Pulse for one through four colors with integer half-span timing and fractional durations. CLI/profile/GUI inputs preserve legacy implicit effects and old marker profiles: absent `gg122` retains old arithmetic. Production comparisons match all eight controlled GG 122 Flow reports and the complete older three-color Breathe frame with aggregate 1322. Bounds, leading holds, minimum durations, and legacy-profile behavior have deterministic coverage; the graphical round-trip check covers fourteen-color Flow and positioned Pulse. Expanded controlled GG captures and native owner acceptance are still pending, so the feature task remains in progress and support claims distinguish candidates from physically accepted cases.
+
+## [2026-10-21] research | Recover the GameDAC device-specific lighting serializer
+
+Traced the encrypted device-definition loader through the OpenPGP decoder and password callback to the Lisp evaluation environment. Decoded the GameDAC declaration and its two lighting includes privately, with valid integrity checks and recorded source/plaintext hashes. The explicit include and zone API chain establishes the shared serializer as GameDAC lighting code. Documented 14 input colors, 16 output records, minimum duration 33, nonzero-start hold behavior, Breathe integer half-spans, separate header/effect initial colors, propagation fields, and the lossy inverse converter. The Breathe model now reproduces every byte of the old 13.5-second preset with aggregate 1322. The six-color UI mismatch and firmware brightness/timing remain unresolved. Added [the maintained findings](gg122-device-serializer.md) and an independent research regression test. No target/interpreter execution, hardware traffic, proprietary publication, or product-boundary expansion occurred.
+
+## [2026-10-21] implementation | Generate positioned Color Flow and Reflected
+
+Added an additive `color-shift-markers` CLI/profile path and opt-in GUI Marker positions controls, preserving legacy implicit two-color JSON and packet timing. The builder accepts two or three increasing integer percentages starting at 0% and ending below 100%, exact 1.00–30.00-second duration, and per-earcup Reflected transformation with optional reversal. It rejects unsupported layouts, mode combinations, and signed-byte rate overflow before transport. All eight controlled feature reports match exactly using their historical header; ordinary plans initialize the retained header with the first color. The owner accepted generated normal Reflected, reversed Reflected, and fractional Synchronized lighting with working audio. Precise cycle periods were not measured. GUI load/save round-trip checks passed for old and new profiles in an isolated store; runtime inspection caught and fixed a clipped duration field.
+
+Correction to the earlier capture entry: the public CLI/profile `LightingPlan::color_shift` already enforced exactly two colors. Only the lower-level `FeatureReport::color_shift` allowed up to 14 for structural fixtures. The earlier Rust/CLI 2–14 statement conflated these layers; maintained pages now distinguish them. The prior entry and immutable captures remain unchanged.
+
+## [2026-10-21] verification | Accept exact GG 122 lighting replay from Linux
+
+After Windows stopped and Linux regained both USB functions, replayed the captured baseline, Reflected, reversed Reflected, and fractional-speed plans through the unprivileged Rust CLI. The owner accepted synchronized colors and audio, opposing earcup sequences under Reflected, the mirrored left sequence after reversal, and the final synchronized fractional configuration. Exact timing was not measured. The last replay restored the final-GG earcup report pair; microphone zones were untouched. Post-checks confirmed the profile-store hash and selected `Moonlander` profile were unchanged, default audio volume was unchanged, and the controller remained Ready. This accepts the sampled exact replays; it does not expose production marker/fractional/Reflected generation.
+
+## [2026-10-21] capture | Correlate GG 122 reflection and fractional marker timing
+
+Preserved the [controlled repeat](raw/capture-reflected-timing-controlled-20261021.pcapng): 46 target-only packets with eight full lighting reports, zero acquisition drops, no truncation, and no descriptor/serial or unrelated request families. The owner confirmed RGB markers at 0%/25%/70% and advanced through Synchronized, Reflected, reversed Reflected, baseline restore, and 12.00-to-12.34-second timing one Apply at a time. Reflected mirrors the right palette; reverse moves that palette to the left without setting a wire reverse flag. The fractional case separately truncates transition durations to 308/555/370 and stores their sum, 1,233. Added an independent test-only reconstruction matching every byte of all eight reports. GG-driven physical observations are recorded separately from still-open native replay/generation acceptance. Reconciled the documentation's two-color physical-support boundary with the existing Rust/CLI 2–14-color implicit-timing API and two-color GTK editor; no production behavior changed.
+
+## [2026-10-21] correction | Confirm first capture marker positions
+
+After the initial uncertainty, the owner read back the actual marker positions as red 0%, green 50%, and blue 75%, correcting the tentative 25%/50%/75% recollection. The confirmed positions agree with the forward 600/300/300 transition durations at aggregate 1,200 and the 617/308/308 durations at aggregate 1,233. The original capture is unchanged; mode attribution and physical behavior remain unverified, and the owner-requested controlled repeat still uses 0%/25%/70%.
+
+## [2026-10-21] capture | Preserve confounded GG 122 three-color exploration
+
+Added a new immutable [GG 122 capture](raw/capture-reflected-timing-20261021.pcapng) and recorded its actual packet patterns in [the experiment journal](experiments.md). The owner reported uncertainty over linked earcups versus Synchronized mode and likely unintended 25%/50%/75% markers, so the requested sequence is not asserted as performed. The 90-packet target-only trace contains opposite and swapped earcup palettes plus aggregate values 1,200 and 1,233; it does not establish the exact input-to-wire formula or physical behavior. Acquisition reported zero drops; privacy checks found only known lighting requests and their zero-data completions. Deleted the temporary whole-bus capture and retained the first trace unchanged while preparing an owner-requested repeat.
+
+## [2026-10-21] research | Inspect GG 122 lighting paths offline
+
+Added a versioned [offline investigation](gg122-lighting-research.md) with hashes, exact JavaScript module locators, REA evidence identities, and explicit coverage limits. Static inspection found that original GameDAC Reflected mode mirrors one earcup's marker palette rather than enabling Sweep direction; its reverse option selects the other side. The shared editor stores centisecond speed values and allows 14 ColorShift colors and four Breathe colors. Rechecked all binary GG 118 captures without changing them: 63 complete lighting reports, including 45 animated reports. These findings do not resolve the existing multicolor timing counterexamples or expand packet generation. Recorded an asymmetric three-color capture sequence to distinguish reflection from synchronization. Proprietary artifacts remain local, and no target execution or device writes were performed.
+
+An isolated REA/Ghidra pass also traced the generic native path from device API selection through command/chunk serialization to evaluation of stored Lisp byte-generation code. The GameDAC-specific program and coefficient formula were not recovered, so this is a bounded mechanism trace rather than a complete wire-serializer reconstruction. Retained private pseudocode, assembly, tool identities, and direct call evidence; closed the ephemeral native database. No global client configuration or skill installation was changed.
 
 ## [2026-09-06] correction | Move marketplace evidence to its owning repository
 

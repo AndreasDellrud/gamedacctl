@@ -2,7 +2,7 @@
 title: System overview
 type: overview
 status: current
-updated: 2026-09-05
+updated: 2026-10-21
 sources:
   - src/protocol.rs
   - src/transport.rs
@@ -12,6 +12,8 @@ sources:
   - docs/raw/capture-full-effects-mic-20260905.pcapng
   - docs/raw/capture-connected-modes-20260905.pcapng
   - docs/raw/capture-effect-presets-20260905.pcapng
+  - docs/raw/capture-reflected-timing-controlled-20261021.pcapng
+  - src/capture.rs
 ---
 
 # System overview
@@ -56,6 +58,7 @@ Verified native behavior:
 - Zone 0 is the left earcup.
 - Zone 1 is the right earcup.
 - Complete captured Breathe packets replay from Linux.
+- The sampled GG 122 three-color marker, Reflected/reversed Reflected, and fractional-speed reports replay from Linux with owner-accepted lighting and working audio.
 - Connected Sweep alternates between earcups; Synchronized breathes together.
 - Zone 2 is the live/unmuted microphone LED state.
 - Zone 3 is the muted microphone LED state.
@@ -73,16 +76,17 @@ Implemented and physically accepted through the Rust controller:
 - Generated two-color ColorShift and one-to-four-color Multi Color Breathe across synchronized earcups.
 - Deterministic dry-run output and fail-closed packet validation.
 
-Still outside the generated controller boundary:
+The additive positioned Color Flow path supports two or three markers, with strictly increasing integer percentages starting at 0% and ending below 100%, and duration in exact hundredths from 1.00 through 30.00 seconds. Reflected mirrors one earcup's palette; reverse swaps the mirrored side. The controlled RGB 0%/25%/70% configuration passed generated Reflected, reversed Reflected, and 12.34-second Synchronized acceptance with working audio. Other bounded layouts generalize the captured formula; unrepresentable transition rates are rejected.
 
-- ColorShift lists longer than two colors, arbitrary GG marker positions, and fractional multicolor speed mapping.
-- Reflected behavior.
+Longer ColorShift palettes, nonzero first markers, duplicate/100% endpoints, and fractional Breathe mapping remain outside the generated controller boundary. Legacy CLI/profile plans still require two colors and retain their implicit spacing. The low-level 14-color structural constructor is for analysis, not the public plan boundary.
+
+The controlled GG 122 [research capture](experiments.md#controlled-gg-122-marker-reflection-and-fractional-timing-capture) establishes the three-color 0%/25%/70% input-to-byte model and its mirrored palette at 12.00 seconds, plus per-segment truncation at 12.34 seconds. Both the independent reconstruction and production builder match all eight complete reports. Precise physical cycle periods remain unmeasured.
 
 ## Current implementations
 
 `gamedacctl` is the native Rust controller. Its pure protocol layer constructs zero-filled Steady and bounded animated reports, computes exact zone masks, validates captured reports, and is isolated from the HID transport. It selects only `1038:1280` interface 0. Tests compare generated Sweep, reversed Sweep, Synchronized, Breathe, and two-color ColorShift reports byte-for-byte with Engine capture fixtures. Physical acceptance additionally verified red-to-blue ColorShift through purple and red/green/blue Multi Color Breathe with black between colors, followed by Steady rollback without disrupting the configured audio device.
 
-`gamedacctl-gui` is the native GTK4/libadwaita front end over the same library. Its user-facing names are Solid, Color Flow, and Color Pulse, mapping to the stored and protocol-level Steady, two-color ColorShift, and one-to-four-color Multi Color Breathe identities. Together and Across earcups describe the supported synchronized and connected Sweep timing. It retains legacy single-color profile decoding, reports disconnected, transient access, persistent permission, and write-result states, and atomically stores versioned JSON profiles in the user's XDG configuration directory. A store-level master flag turns every lighting zone off without replacing the selected profile; enabling it or explicitly applying a profile restores normal profile behavior. Reconnect restore is opt-in and replays either the selected profile or the retained off state. It detects both absence and changed hidraw paths, waits four seconds for firmware initialization, and reopens the device. Hardware testing verified persistence across a full process restart, successful two-earcup restore after a fast manual USB reconnect, the master off/restore round trip from the Omarchy panel without changing the selected profile, and simultaneous animated earcups with independent live/muted microphone colors.
+`gamedacctl-gui` is the native GTK4/libadwaita front end over the same library. Its user-facing names are Solid, Color Flow, and Color Pulse, mapping to the stored and protocol-level Steady, ColorShift, and one-to-four-color Multi Color Breathe identities. Color Flow retains legacy two-color implicit timing unless Marker positions is enabled; that mode exposes two to three percentages, fractional duration, and Synchronized/Reflected earcup motion. Together and Across earcups describe the supported synchronized and connected Sweep timing. It retains legacy single-color profile decoding, reports disconnected, transient access, persistent permission, and write-result states, and atomically stores versioned JSON profiles in the user's XDG configuration directory. A store-level master flag turns every lighting zone off without replacing the selected profile; enabling it or explicitly applying a profile restores normal profile behavior. Reconnect restore is opt-in and replays either the selected profile or the retained off state. It detects both absence and changed hidraw paths, waits four seconds for firmware initialization, and reopens the device. Hardware testing verified persistence across a full process restart, successful two-earcup restore after a fast manual USB reconnect, the master off/restore round trip from the Omarchy panel without changing the selected profile, and simultaneous animated earcups with independent live/muted microphone colors.
 
 `scripts/gamedac-rgb` uses the installed HIDAPI library through Python `ctypes`. It finds vendor `1038`, product `1280`, interface 0, sends the observed 1,024-byte feature reports, and follows them with observed 64-byte apply/save reports. Its research replay mode extracts only complete, recognized lighting reports from a pcap through `tshark`; it does not synthesize unknown animation fields.
 
@@ -92,7 +96,7 @@ The older deployed workstation research copy is `~/.local/bin/gamedac-rgb`. The 
 
 - The exact firmware interpretation of the animation coefficients, despite a consistent mathematical relationship with color and duration.
 - Whether arbitrary multicolor gradients can be generated safely or should initially be exposed as captured presets.
-- Whether animation header RGB is an initial state or merely retained UI state. The normal builder sets it to the requested effect color, which worked physically, while exact fixture tests preserve each captured header independently.
+- The header RGB is now identified as a separate lighting-element initial-color field by the [recovered serializer](gg122-device-serializer.md); its precise firmware role during animation remains unmeasured. The effect initial RGB comes from the first marker, while historical headers remain independently preserved in fixtures.
 - Why the observed single-color Breathe waveform does not fade completely to black despite there being no brightness control in GG.
 - Whether unsolicited 64-byte control-interface input reports can serve as a reconnect-readiness signal. Existing captures contain repeated `0x10` and later `0x20` reports, but do not correlate their first appearance after enumeration with successful two-zone lighting writes.
 - Which older preview path requires output report `A3`; later saved configurations used `A5 03 0A`, `AC`, and `09`.

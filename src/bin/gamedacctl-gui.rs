@@ -2,7 +2,7 @@ use std::{cell::Cell, rc::Rc, str::FromStr, time::Duration};
 
 use adw::prelude::*;
 use gamedacctl::{
-    Color, LightingPlan, Zone,
+    Color, ColorMarker, ColorShiftMode, LightingPlan, Zone,
     profile::{MicrophoneLighting, Profile, ProfileBreatheMode, ProfileLighting, ProfileStore},
     transport::{HidTransport, Transport, TransportError},
 };
@@ -114,6 +114,8 @@ struct PaletteRow {
     widget: gtk::Box,
     controls: gtk::Box,
     color: ColorInput,
+    position: gtk::SpinButton,
+    position_unit: gtk::Label,
     move_up: gtk::Button,
     move_down: gtk::Button,
     remove: gtk::Button,
@@ -133,7 +135,7 @@ impl PaletteEditor {
     fn new() -> Self {
         let widget = gtk::Box::new(gtk::Orientation::Vertical, 6);
         let mut rows = Vec::new();
-        for index in 0..4 {
+        for index in 0..14 {
             let color = ColorInput::new(
                 &format!("Animation color {}", index + 1),
                 if index == 0 { "#FF0000" } else { "#0000FF" },
@@ -150,6 +152,19 @@ impl PaletteEditor {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
             row.append(&color.widget);
             let controls = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+            let position = gtk::SpinButton::with_range(0.0, 99.0, 1.0);
+            position.set_value((index * 100 / 14) as f64);
+            position.set_tooltip_text(Some("Marker position (%)"));
+            position.update_property(&[gtk::accessible::Property::Label(&format!(
+                "Color {} position (%)",
+                index + 1
+            ))]);
+            position.set_sensitive(index != 0);
+            position.set_visible(false);
+            controls.append(&position);
+            let position_unit = gtk::Label::new(Some("%"));
+            position_unit.set_visible(false);
+            controls.append(&position_unit);
             controls.append(&move_up);
             controls.append(&move_down);
             controls.append(&remove);
@@ -159,6 +174,8 @@ impl PaletteEditor {
                 widget: row,
                 controls,
                 color,
+                position,
+                position_unit,
                 move_up,
                 move_down,
                 remove,
@@ -261,6 +278,30 @@ impl PaletteEditor {
             .collect()
     }
 
+    fn markers(&self) -> Result<Vec<ColorMarker>, String> {
+        for row in self.rows.iter().take(self.count.get()) {
+            row.position.update();
+        }
+        Ok(self
+            .colors()?
+            .into_iter()
+            .enumerate()
+            .map(|(i, color)| ColorMarker {
+                color,
+                percent: self.rows[i].position.value_as_int() as u8,
+            })
+            .collect())
+    }
+
+    fn set_marker_positions(&self, enabled: bool, allow_nonzero_start: bool) {
+        for (index, row) in self.rows.iter().enumerate() {
+            row.position
+                .set_sensitive(index != 0 || allow_nonzero_start);
+            row.position.set_visible(enabled);
+            row.position_unit.set_visible(enabled);
+        }
+    }
+
     fn set_colors(&self, colors: &[Color]) {
         let count = colors.len().clamp(self.minimum.get(), self.maximum.get());
         self.count.set(count);
@@ -300,6 +341,13 @@ struct Editor {
     profile_icon_widget: gtk::Box,
     style: gtk::DropDown,
     relationship: gtk::DropDown,
+    relationship_row: adw::ActionRow,
+    positioned: gtk::Switch,
+    gg122: gtk::Switch,
+    gg122_row: adw::ActionRow,
+    positioned_row: adw::ActionRow,
+    marker_mode: gtk::DropDown,
+    marker_mode_row: adw::ActionRow,
     left: ColorInput,
     right: ColorInput,
     microphone_live: ColorInput,
@@ -413,6 +461,19 @@ fn build_ui(application: &adw::Application) {
         move |_| update_effect_visibility(&editor)
     });
     editor.relationship.connect_selected_notify({
+        let editor = editor.clone();
+        move |_| update_effect_visibility(&editor)
+    });
+
+    editor.positioned.connect_active_notify({
+        let editor = editor.clone();
+        move |_| update_effect_visibility(&editor)
+    });
+    editor.gg122.connect_active_notify({
+        let editor = editor.clone();
+        move |_| update_effect_visibility(&editor)
+    });
+    editor.marker_mode.connect_selected_notify({
         let editor = editor.clone();
         move |_| update_effect_visibility(&editor)
     });
@@ -688,7 +749,7 @@ fn show_help(window: &adw::ApplicationWindow) {
              2. Pick a lighting effect and its colors.\n\
              3. Set the live and muted microphone colors.\n\
              4. Save keeps the profile; Apply sends it now.\n\n\
-             Solid sets Left and Right independently. Color Flow transitions continuously between two colors. Color Pulse fades one to four colors through black. Together animates Left and Right in sync; Across alternates them and supports one color.\n\n\
+             Solid sets Left and Right independently. Color Flow transitions continuously between two colors. Marker positions adds explicit timing; GG timing supports up to 14 colors and a nonzero first marker as a leading hold. Existing marker profiles retain their previous timing until GG timing is enabled. Positions must increase below 100%; duration accepts hundredths of a second. Synchronized matches the earcups; Reflected runs opposite directions, and Reverse swaps them. Color Pulse fades one to four colors through black. Enable Marker positions for GG timing, including fractional duration; this positioned mode is synchronized. GG imposes a minimum transition length, so actual timing can differ from the requested duration. Together animates Left and Right in sync; Across alternates them and supports one color.\n\n\
              The Lighting enabled switch turns every zone off and restores the selected profile when turned back on.",
         ),
     );
@@ -760,6 +821,30 @@ fn build_editor() -> Editor {
     let profile_icon_widget = profile_icon_input(&profile_icon);
     let style = gtk::DropDown::from_strings(&["Solid", "Color Flow", "Color Pulse"]);
     let relationship = gtk::DropDown::from_strings(&["Together", "Across"]);
+    let positioned = gtk::Switch::new();
+    positioned.set_valign(gtk::Align::Center);
+    let positioned_row = preference_row(
+        "Marker positions",
+        Some(
+            "Increasing percentages below 100%. A nonzero first marker adds a leading hold with GG timing.",
+        ),
+        &positioned,
+    );
+    let gg122 = gtk::Switch::new();
+    gg122.set_valign(gtk::Align::Center);
+    let gg122_row = preference_row(
+        "GG timing",
+        Some(
+            "Up to 14 colors, optional leading hold, and minimum transition lengths. Existing profiles keep their timing until enabled.",
+        ),
+        &gg122,
+    );
+    let marker_mode = gtk::DropDown::from_strings(&["Synchronized", "Reflected"]);
+    let marker_mode_row = preference_row(
+        "Earcup motion",
+        Some("Reflected runs the earcups in opposite directions."),
+        &marker_mode,
+    );
 
     let left = ColorInput::new("Left", "#FF3700");
     let right = ColorInput::new("Right", "#0084FF");
@@ -787,25 +872,27 @@ fn build_editor() -> Editor {
     let effect_colors = PaletteEditor::new();
     let seconds = gtk::SpinButton::with_range(1.0, 30.0, 1.0);
     seconds.set_value(10.0);
+    seconds.set_width_chars(5);
     let reverse = gtk::Switch::new();
     reverse.set_valign(gtk::Align::Center);
     let animation_group = adw::PreferencesGroup::builder()
         .title("Animated colors")
         .build();
+    animation_group.add(&positioned_row);
+    animation_group.add(&gg122_row);
+    animation_group.add(&marker_mode_row);
     animation_group.add(&preference_row(
         "Color sequence",
         None,
         &effect_colors.widget,
     ));
     animation_group.add(&preference_row("Duration", Some("1–30 seconds."), &seconds));
+    let relationship_row =
+        preference_row("Timing", Some("Together or alternating."), &relationship);
+    animation_group.add(&relationship_row);
     animation_group.add(&preference_row(
-        "Timing",
-        Some("Together or alternating."),
-        &relationship,
-    ));
-    animation_group.add(&preference_row(
-        "Reverse sequence flag",
-        Some("Protocol option; its visible effect is subtle."),
+        "Reverse direction",
+        Some("Swap the Reflected direction, or reverse Across Color Pulse."),
         &reverse,
     ));
 
@@ -815,6 +902,13 @@ fn build_editor() -> Editor {
         profile_icon_widget,
         style,
         relationship,
+        relationship_row,
+        positioned,
+        gg122,
+        gg122_row,
+        positioned_row,
+        marker_mode,
+        marker_mode_row,
         left,
         right,
         microphone_live,
@@ -905,16 +999,46 @@ fn update_effect_visibility(editor: &Editor) {
     let is_multi_color_breathe = editor.style.selected() == 2;
     editor.static_group.set_visible(is_steady);
     editor.animation_group.set_visible(!is_steady);
+    let positioned = !is_steady && editor.positioned.is_active();
+    let gg122 = is_multi_color_breathe || editor.gg122.is_active();
+    editor.positioned_row.set_visible(!is_steady);
+    editor
+        .gg122_row
+        .set_visible(positioned && !is_multi_color_breathe);
+    editor
+        .marker_mode_row
+        .set_visible(positioned && !is_multi_color_breathe);
+    editor.effect_colors.set_marker_positions(positioned, gg122);
+    if !gg122 {
+        editor.effect_colors.rows[0].position.set_value(0.0);
+    }
+    editor.seconds.set_digits(if positioned { 2 } else { 0 });
+    editor
+        .seconds
+        .set_increments(if positioned { 0.01 } else { 1.0 }, 1.0);
     if editor.style.selected() == 1 {
-        editor.effect_colors.configure(2, 2);
+        editor.effect_colors.configure(
+            2,
+            if positioned {
+                if gg122 { 14 } else { 3 }
+            } else {
+                2
+            },
+        );
     } else if is_multi_color_breathe {
         editor.effect_colors.configure(1, 4);
     }
-    editor.relationship.set_sensitive(is_multi_color_breathe);
     editor
-        .reverse
-        .set_sensitive(is_multi_color_breathe && editor.relationship.selected() == 1);
-    if !is_multi_color_breathe || editor.relationship.selected() != 1 {
+        .relationship_row
+        .set_visible(is_multi_color_breathe && !positioned);
+    editor
+        .relationship
+        .set_sensitive(is_multi_color_breathe && !positioned);
+    let reverse_allowed =
+        (is_multi_color_breathe && !positioned && editor.relationship.selected() == 1)
+            || (positioned && !is_multi_color_breathe && editor.marker_mode.selected() == 1);
+    editor.reverse.set_sensitive(reverse_allowed);
+    if !reverse_allowed {
         editor.reverse.set_active(false);
     }
 }
@@ -925,6 +1049,7 @@ fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
         "" => None,
         icon => Some(icon.to_owned()),
     };
+    editor.seconds.update();
     let lighting = match editor.style.selected() {
         0 => ProfileLighting::Static {
             left: editor.left.parse("Left")?,
@@ -932,9 +1057,24 @@ fn profile_from_editor(editor: &Editor) -> Result<Profile, String> {
             microphone_live: editor.microphone_live.parse("Microphone live")?,
             microphone_muted: editor.microphone_muted.parse("Microphone muted")?,
         },
+        1 if editor.positioned.is_active() => ProfileLighting::ColorShiftMarkers {
+            markers: editor.effect_colors.markers()?,
+            centiseconds: (editor.seconds.value() * 100.0).round() as u16,
+            gg122: editor.gg122.is_active(),
+            mode: if editor.marker_mode.selected() == 0 {
+                ColorShiftMode::Synchronized
+            } else {
+                ColorShiftMode::Reflected
+            },
+            reverse: editor.reverse.is_active(),
+        },
         1 => ProfileLighting::ColorShift {
             colors: editor.effect_colors.colors()?,
             seconds: editor.seconds.value_as_int() as u16,
+        },
+        2 if editor.positioned.is_active() => ProfileLighting::BreatheMarkers {
+            markers: editor.effect_colors.markers()?,
+            centiseconds: (editor.seconds.value() * 100.0).round() as u16,
         },
         2 => ProfileLighting::MultiColorBreathe {
             colors: editor.effect_colors.colors()?,
@@ -977,6 +1117,14 @@ fn populate_editor(editor: &Editor, profile: &Profile) {
         editor.microphone_live.set_text("#00FF00");
         editor.microphone_muted.set_text("#FF0000");
     }
+    editor.positioned.set_active(matches!(
+        profile.lighting,
+        ProfileLighting::ColorShiftMarkers { .. } | ProfileLighting::BreatheMarkers { .. }
+    ));
+    editor.gg122.set_active(matches!(
+        profile.lighting,
+        ProfileLighting::ColorShiftMarkers { gg122: true, .. }
+    ));
     match &profile.lighting {
         ProfileLighting::Static {
             left,
@@ -1010,6 +1158,49 @@ fn populate_editor(editor: &Editor, profile: &Profile) {
             editor.seconds.set_value(f64::from(*seconds));
             editor.reverse.set_active(*reverse);
         }
+        ProfileLighting::ColorShiftMarkers {
+            markers,
+            centiseconds,
+            gg122,
+            mode,
+            reverse,
+        } => {
+            editor.style.set_selected(1);
+            editor.gg122.set_active(*gg122);
+            editor.positioned.set_active(true);
+            update_effect_visibility(editor);
+            editor
+                .effect_colors
+                .set_colors(&markers.iter().map(|m| m.color).collect::<Vec<_>>());
+            for (row, marker) in editor.effect_colors.rows.iter().zip(markers) {
+                row.position.set_value(f64::from(marker.percent));
+            }
+            editor.seconds.set_value(f64::from(*centiseconds) / 100.0);
+            editor
+                .marker_mode
+                .set_selected(if *mode == ColorShiftMode::Synchronized {
+                    0
+                } else {
+                    1
+                });
+            editor.reverse.set_active(*reverse);
+        }
+        ProfileLighting::BreatheMarkers {
+            markers,
+            centiseconds,
+        } => {
+            editor.style.set_selected(2);
+            editor.positioned.set_active(true);
+            update_effect_visibility(editor);
+            editor
+                .effect_colors
+                .set_colors(&markers.iter().map(|m| m.color).collect::<Vec<_>>());
+            for (row, marker) in editor.effect_colors.rows.iter().zip(markers) {
+                row.position.set_value(f64::from(marker.percent));
+            }
+            editor.seconds.set_value(f64::from(*centiseconds) / 100.0);
+            editor.reverse.set_active(false);
+        }
         ProfileLighting::ColorShift { colors, seconds } => {
             editor.style.set_selected(1);
             editor.effect_colors.configure(2, 2);
@@ -1042,6 +1233,7 @@ fn reset_editor(editor: &Editor) {
     editor.profile_name.set_text("");
     editor.profile_icon.set_text("");
     editor.style.set_selected(0);
+    editor.positioned.set_active(false);
     editor.left.set_text("#FF3700");
     editor.right.set_text("#0084FF");
     editor.microphone_live.set_text("#00FF00");
@@ -1198,4 +1390,130 @@ fn monitor_reconnect(
         }
         glib::ControlFlow::Continue
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires a graphical session; run with --ignored --test-threads=1"]
+    fn editor_round_trips_legacy_and_positioned_profiles_without_hid_writes() {
+        gtk::init().unwrap();
+        adw::init().unwrap();
+        let editor = build_editor();
+        assert!(!editor.gg122.is_active());
+        editor.style.connect_selected_notify({
+            let editor = editor.clone();
+            move |_| update_effect_visibility(&editor)
+        });
+        editor.positioned.connect_active_notify({
+            let editor = editor.clone();
+            move |_| update_effect_visibility(&editor)
+        });
+        editor.gg122.connect_active_notify({
+            let editor = editor.clone();
+            move |_| update_effect_visibility(&editor)
+        });
+        editor.marker_mode.connect_selected_notify({
+            let editor = editor.clone();
+            move |_| update_effect_visibility(&editor)
+        });
+        for lighting in [
+            ProfileLighting::ColorShiftMarkers {
+                markers: (0..14)
+                    .map(|i| ColorMarker {
+                        color: Color::new(i * 17, 255 - i * 17, i * 11),
+                        percent: 1 + i * 7,
+                    })
+                    .collect(),
+                centiseconds: 1234,
+                gg122: true,
+                mode: ColorShiftMode::Reflected,
+                reverse: true,
+            },
+            ProfileLighting::BreatheMarkers {
+                markers: vec![
+                    ColorMarker {
+                        color: Color::new(255, 0, 0),
+                        percent: 10,
+                    },
+                    ColorMarker {
+                        color: Color::new(0, 255, 0),
+                        percent: 35,
+                    },
+                    ColorMarker {
+                        color: Color::new(0, 0, 255),
+                        percent: 80,
+                    },
+                ],
+                centiseconds: 1350,
+            },
+            ProfileLighting::ColorShiftMarkers {
+                markers: vec![
+                    ColorMarker {
+                        color: Color::new(255, 0, 0),
+                        percent: 0,
+                    },
+                    ColorMarker {
+                        color: Color::new(0, 255, 0),
+                        percent: 25,
+                    },
+                    ColorMarker {
+                        color: Color::new(0, 0, 255),
+                        percent: 70,
+                    },
+                ],
+                centiseconds: 1234,
+                gg122: false,
+                mode: ColorShiftMode::Reflected,
+                reverse: true,
+            },
+            ProfileLighting::ColorShift {
+                colors: vec![Color::new(255, 0, 0), Color::new(0, 0, 255)],
+                seconds: 12,
+            },
+            ProfileLighting::MultiColorBreathe {
+                colors: vec![Color::new(0, 255, 0)],
+                seconds: 5,
+                mode: ProfileBreatheMode::Sweep,
+                reverse: true,
+            },
+            ProfileLighting::ColorShiftMarkers {
+                markers: vec![
+                    ColorMarker {
+                        color: Color::new(255, 0, 0),
+                        percent: 0,
+                    },
+                    ColorMarker {
+                        color: Color::new(0, 0, 255),
+                        percent: 50,
+                    },
+                ],
+                centiseconds: 1299,
+                gg122: false,
+                mode: ColorShiftMode::Synchronized,
+                reverse: false,
+            },
+        ] {
+            let profile = Profile {
+                name: "GUI test".into(),
+                icon: None,
+                microphone: Some(MicrophoneLighting {
+                    live: Color::new(0, 255, 0),
+                    muted: Color::new(255, 0, 0),
+                }),
+                lighting,
+            };
+            populate_editor(&editor, &profile);
+            assert_eq!(
+                editor.gg122.is_active(),
+                matches!(
+                    profile.lighting,
+                    ProfileLighting::ColorShiftMarkers { gg122: true, .. }
+                )
+            );
+            assert_eq!(profile_from_editor(&editor).unwrap(), profile);
+        }
+    }
 }

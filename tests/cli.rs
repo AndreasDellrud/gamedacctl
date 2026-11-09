@@ -400,3 +400,132 @@ fn passive_input_observation_rejects_dry_run_without_opening_hid() {
             .contains("--dry-run is not meaningful for passive input observation")
     );
 }
+
+#[test]
+fn positioned_color_flow_accepts_fractional_reflected_and_rejects_invalid_inputs() {
+    let base = [
+        "--dry-run",
+        "color-shift-markers",
+        "--marker",
+        "FF0000@0",
+        "--marker",
+        "00FF00@25",
+        "--marker",
+        "0000FF@70",
+    ];
+    let output = gamedacctl()
+        .args(base)
+        .args(["--seconds", "12.34", "--reflected", "--reverse"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output);
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("zone-mask=0x03"));
+    assert!(text.contains("feature zone=left"));
+    assert!(text.contains("feature zone=right"));
+    for extra in [
+        vec!["--seconds", "12.345"],
+        vec!["--seconds", "12", "--reverse"],
+    ] {
+        assert!(
+            !gamedacctl()
+                .args(base)
+                .args(extra)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    assert!(
+        !gamedacctl()
+            .args([
+                "--dry-run",
+                "color-shift-markers",
+                "--marker",
+                "FF0000@10",
+                "--marker",
+                "0000FF@70",
+                "--seconds",
+                "12"
+            ])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn gg122_marker_commands_are_explicit_and_bounded() {
+    let markers = [
+        "--marker",
+        "FF0000@10",
+        "--marker",
+        "FFFF00@17",
+        "--marker",
+        "00FF00@33",
+        "--marker",
+        "00FFFF@50",
+        "--marker",
+        "0000FF@66",
+        "--marker",
+        "FF00FF@83",
+        "--seconds",
+        "12.34",
+    ];
+    assert!(
+        gamedacctl()
+            .args(["--dry-run", "color-shift-markers", "--gg122", "--reflected"])
+            .args(markers)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(
+        !gamedacctl()
+            .args(["--dry-run", "color-shift-markers"])
+            .args(markers)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    let pulse = gamedacctl()
+        .args([
+            "--dry-run",
+            "breathe-markers",
+            "--marker",
+            "FF0000@0",
+            "--marker",
+            "FF7300@33",
+            "--marker",
+            "FF9D00@66",
+            "--seconds",
+            "13.50",
+        ])
+        .output()
+        .unwrap();
+    assert!(pulse.status.success());
+    assert!(
+        String::from_utf8(pulse.stdout)
+            .unwrap()
+            .contains("zone-mask=0x03")
+    );
+    assert!(
+        !gamedacctl()
+            .args([
+                "--dry-run",
+                "breathe-markers",
+                "--marker",
+                "FF0000@100",
+                "--seconds",
+                "12"
+            ])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+}
